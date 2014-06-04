@@ -10,8 +10,9 @@
 #include "colorutils.h"
 #include "hsv2rgb.h"
 #if SD_CARD_SUPPORT
-#include "SD.h"
+    #include "SD.h"
 #endif
+
 #if DEBUG
     #define DEBUG_PRINTLN(a) Serial.println(a)
     #define DEBUG_PRINTF(a, ...) Serial.printf(a, ##__VA_ARGS__)
@@ -55,11 +56,15 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
             
         case LEDPatternTypeDoNothing:
             return true;
+#if SD_CARD_SUPPORT
         case LEDPatternTypeImageLinearFade:
+#endif
         case LEDPatternTypeWave:
             return false;
+#if SD_CARD_SUPPORT
         case LEDPatternTypeImageEntireStrip:
             return true;
+#endif
         case LEDPatternTypeBottomGlow:
             return true; // Doesn't do anything
         case LEDPatternTypeRotatingBottomGlow:
@@ -1832,13 +1837,16 @@ void LEDPatterns::linearImageFade() {
 void LEDPatterns::flashThreeTimesWithDelay(CRGB color, uint32_t delayAmount) {
     for (int i = 0; i < 3; i++) {
         fill_solid(m_leds, m_ledCount, color);
+        internalShow();
         delay(delayAmount);
         fill_solid(m_leds, m_ledCount, CRGB::Black);
+        internalShow();
         delay(delayAmount);
     }
 }
 
 void LEDPatterns::flashOnce(CRGB color) {
     fill_solid(m_leds, m_ledCount, color);
+    internalShow();
     delay(250);
 }

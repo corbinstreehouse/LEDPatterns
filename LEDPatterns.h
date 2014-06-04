@@ -13,7 +13,7 @@
 #include "pixeltypes.h"
 
 // Turn this off if you don't have an SD card
-#define SD_CARD_SUPPORT 1
+#define SD_CARD_SUPPORT 0
 
 // NOTE: update g_patternTypeNames when this changes!!
 typedef enum : int16_t {
@@ -188,6 +188,7 @@ public:
     
     // Primary way to change patterns by calling setPatternType; this re-intializes things
     void setPatternType(LEDPatternType type);
+    inline LEDPatternType getPatternType() { return m_patternType; }
     // A pattern's speed is based on its duration. Some patterns ignore this, and others adhere to it. After each duration "tick" happens, the interval count is increased.
     inline void setDuration(uint32_t duration) { m_duration = duration; } // in ms; must be > 0
     // Some patterns are based off a primary color
