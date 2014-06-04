@@ -11,7 +11,9 @@
 
 #include "LEDPatterns.h"
 #include "Adafruit_NeoPixel.h"
-#include "LEDDigitalCyrWheel.h"
+
+
+#define STRIP_PIN 2
 
 
 class NeoPixelLEDPatterns : public LEDPatterns {
