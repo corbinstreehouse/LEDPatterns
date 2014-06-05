@@ -12,9 +12,7 @@
 #include "LEDPatterns.h"
 #include "Adafruit_NeoPixel.h"
 
-
 #define STRIP_PIN 2
-
 
 class NeoPixelLEDPatterns : public LEDPatterns {
 private:
@@ -24,7 +22,7 @@ protected:
 public:
     virtual void setBrightness(uint8_t brightness) { m_strip.setBrightness(brightness); }
     uint8_t getBrightness() { return m_strip.getBrightness(); };
-    NeoPixelLEDPatterns(uint32_t ledCount) : LEDPatterns(ledCount), m_strip(ledCount, STRIP_PIN, NEO_GRB + NEO_KHZ800, m_leds) {
+    NeoPixelLEDPatterns(uint32_t ledCount, int stripPin = STRIP_PIN, uint8_t type = NEO_GRB + NEO_KHZ800) : LEDPatterns(ledCount), m_strip(ledCount, stripPin, type, m_leds) {
         
     }
 

@@ -1,13 +1,33 @@
 #include "Arduino.h"
 #include "LEDPatterns.h"
 #include "FastLED.h"
-#include "Adafruit_NeoPixel.h"
-
-#include "NeoPixelLEDPatterns.h"
 
 #define STRIP_LENGTH  60
+#define STRIP_PIN 2
 
-NeoPixelLEDPatterns ledPatterns(STRIP_LENGTH);
+// Pick your style. NeoPixel, requires the corbinstreehouse library and teensy due to my changes to it
+#define USE_ADAFRUIT 0
+#define USE_OCTO 0
+#define USE_FAST_LED 1
+
+#if USE_ADAFRUIT
+#include "Adafruit_NeoPixel.h"
+#include "NeoPixelLEDPatterns.h"
+NeoPixelLEDPatterns ledPatterns(STRIP_LENGTH, STRIP_PIN);
+#endif
+
+#if USE_OCTO
+// Oco style
+#include "OctoWS2811.h"
+#include "OctoWS2811LEDPatterns.h"
+OctoWS2811LEDPatterns ledPatterns(STRIP_LENGTH, STRIP_PIN);
+#endif
+
+#if USE_FAST_LED
+#include "FastLED.h"
+#include "FastLEDPatterns.h"
+FastLEDPatterns ledPatterns(STRIP_LENGTH, STRIP_PIN);
+#endif
 
 void setup() {
   
@@ -22,7 +42,6 @@ void setup() {
   ledPatterns.setDuration(2000); // 2 seconds
   ledPatterns.setPatternColor(CRGB::Green);
   ledPatterns.setPatternType(LEDPatternTypeRotatingRainbow);
-
   
 }
 
