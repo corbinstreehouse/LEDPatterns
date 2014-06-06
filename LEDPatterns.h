@@ -13,7 +13,7 @@
 #include "pixeltypes.h"
 
 // Turn this off if you don't have an SD card
-#define SD_CARD_SUPPORT 0
+#define SD_CARD_SUPPORT 1
 
 // NOTE: update g_patternTypeNames when this changes!!
 typedef enum : int16_t {
