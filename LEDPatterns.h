@@ -65,6 +65,10 @@ typedef enum : int16_t {
     LEDPatternTypeFire,
     LEDPatternTypeBlueFire,
     
+    LEDPatternFlagEffect,
+    
+    LEDPatternTypeCrossfade,
+    
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
 } LEDPatternType;
@@ -74,6 +78,7 @@ class LEDPatterns {
 private:
     uint32_t m_startTime;
     LEDPatternType m_patternType;
+    LEDPatternType m_nextPatternType; // For crossfade
     uint32_t m_ledCount;
     
     bool m_firstTime;
@@ -128,6 +133,8 @@ private:
         color.blue *= amount;
         setPixelColor(i, color);
     }
+    
+    bool shouldUpdatePattern(); // for 60hz based patterns 
 private: // Patterns
     // Pattern implementations by corbin
     void wavePattern();
@@ -150,7 +157,14 @@ private: // Patterns
     void firePattern();
     void blueFirePattern();
     void firePatternWithColor(bool blue);
+    void flagEffect();
+    
+    // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
+    void crossFadeToNextPattern();
 
+    
+    void updateLEDsForPatternType(LEDPatternType patternType);
+    
 #if SD_CARD_SUPPORT
     // Image based patterns from an SD card
     void linearImageFade();
@@ -195,6 +209,9 @@ public:
     // Primary way to change patterns by calling setPatternType; this re-intializes things
     void setPatternType(LEDPatternType type);
     inline LEDPatternType getPatternType() { return m_patternType; }
+    
+    void setNextPatternType(LEDPatternType nextType) { m_nextPatternType = nextType; } // Only needed for crossfade pattern
+    
     // A pattern's speed is based on its duration. Some patterns ignore this, and others adhere to it. After each duration "tick" happens, the interval count is increased.
     inline void setDuration(uint32_t duration) { m_duration = duration; } // in ms; must be > 0
     // Some patterns are based off a primary color

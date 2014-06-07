@@ -75,7 +75,10 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
             return false;
         case LEDPatternTypeFire:
         case LEDPatternTypeBlueFire:
+        case LEDPatternFlagEffect:
             return true;
+        case LEDPatternTypeCrossfade:
+            return false;
             
     }
 }
@@ -90,25 +93,11 @@ void LEDPatterns::setPatternType(LEDPatternType type) {
     m_count = 0;
 }
 
-void LEDPatterns::show() {
-    uint32_t now = millis();
-    // The inital tick always starts with 0
-    m_timePassed = m_firstTime ? 0 : now - m_startTime;
-
-    // How many intervals have passed?
-    // TODO: corbin, I should only calculate these things for the patterns that need it!
-    m_intervalCount = m_timePassed / m_duration;
-    
-    if (!PatternIsContinuous(m_patternType)) {
-        // Since it isn't continuous, modify the timePassed here
-        if (m_intervalCount > 0) {
-            m_timePassed = m_timePassed - m_intervalCount*m_duration;
-        }
-    }
-    
+void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
     
     // for polulu
     unsigned int maxLoops = 0;  // go to next state when m_ledCount >= maxLoops
+    // Only update based on the real type...
     if (m_patternType == LEDPatternTypeWarmWhiteShimmer || m_patternType == LEDPatternTypeRandomColorWalk)
     {
         // for these two patterns, we want to make sure we get the same
@@ -121,7 +110,8 @@ void LEDPatterns::show() {
         randomSeed(m_seed);
     }
     
-    switch (m_patternType) {
+    // Switch based ont he patternType
+    switch (patternType) {
         case LEDPatternTypeRotatingRainbow: {
             rainbows(1);
             break;
@@ -263,7 +253,7 @@ void LEDPatterns::show() {
             //
             //            break;
 #warning corbin! don't call this multiple times...unless we want it to change
-//            if (isFirstPass || itemHeader->shouldSetBrightnessByRotationalVelocity)
+            //            if (isFirstPass || itemHeader->shouldSetBrightnessByRotationalVelocity)
             {
                 solidRainbow(0, 1);
             }
@@ -296,6 +286,15 @@ void LEDPatterns::show() {
 #endif
             break;
         }
+        case LEDPatternFlagEffect: {
+            flagEffect();
+            break;
+        }
+        case LEDPatternTypeCrossfade: {
+            crossFadeToNextPattern();
+            break;
+        }
+            
     }
     
     if (m_patternType >= LEDPatternTypeWarmWhiteShimmer && m_patternType <= LEDPatternTypeCollision) {
@@ -323,6 +322,25 @@ void LEDPatterns::show() {
             m_loopCount = 0;  // reset timer
         }
     }
+
+}
+
+void LEDPatterns::show() {
+    uint32_t now = millis();
+    // The inital tick always starts with 0
+    m_timePassed = m_firstTime ? 0 : now - m_startTime;
+
+    m_intervalCount = m_timePassed / m_duration;
+    
+    if (!PatternIsContinuous(m_patternType)) {
+        // Since it isn't continuous, modify the timePassed here
+        if (m_intervalCount > 0) {
+            m_timePassed = m_timePassed - m_intervalCount*m_duration;
+        }
+    }
+
+    updateLEDsForPatternType(m_patternType);
+
     internalShow();
     // no longer the first time
     m_firstTime = false;
@@ -1332,6 +1350,26 @@ static CRGB HeatColorBlue( uint8_t temperature)
     return heatcolor;
 }
 
+// For 60-hrz based patterns
+bool LEDPatterns::shouldUpdatePattern() {
+    if (m_firstTime) {
+        m_initialPixel = millis(); // Use for timing
+        return true;
+    } else {
+        // Update every 1/60 second
+        uint32_t now = millis();
+        if (now - m_initialPixel >= ((1.0/60.0)*1000.0)) {
+            // enough time passed!
+            m_initialPixel = now;
+            return true;
+        } else {
+            // not enough time passed;...
+            return false;
+        }
+    }
+
+}
+
 void LEDPatterns::firePatternWithColor(bool blue) {
     // COOLING: How much does the air cool as it rises?
     // Less cooling = taller flames.  More cooling = shorter flames.
@@ -1343,25 +1381,17 @@ void LEDPatterns::firePatternWithColor(bool blue) {
     // Default 120, suggested range 50-200.
 #define SPARKING 130
 
+    if (!shouldUpdatePattern()) {
+        return;
+    }
     // Array of temperature readings at each simulation cell
     byte *heat = (byte *)getTempBuffer1();
     byte *heat2 = (byte *)getTempBuffer2();
     
     if (m_firstTime) {
-        m_initialPixel = millis(); // Use for timing
         for (int i = 0; i < m_ledCount; i++) {
             heat[i] = 0; // random8(255);
             heat2[i] = 0;
-        }
-    } else {
-        // Update every 1/60 second
-        uint32_t now = millis();
-        if (now - m_initialPixel >= ((1.0/60.0)*1000.0)) {
-            // enough time passed!
-            m_initialPixel = now;
-        } else {
-            // not enough time passed;...
-            return;
         }
     }
 
@@ -1411,6 +1441,102 @@ void LEDPatterns::firePattern() {
 
 void LEDPatterns::blueFirePattern() {
     firePatternWithColor(true);
+}
+
+void LEDPatterns::crossFadeToNextPattern() {
+    CRGB *startingBuffer = getTempBuffer1();
+    CRGB *endingBuffer = getTempBuffer2();
+    
+    if (m_firstTime) {
+        // Copy whatever is there starting to our temp buffer
+        // First pass, store off the initial state..
+        memcpy(startingBuffer, m_leds, getBufferSize());
+        
+        // Run one tick of the next pattern...This won't work if the next pattern is another crossfade..
+        if (m_nextPatternType != LEDPatternTypeCrossfade) {
+            updateLEDsForPatternType(m_nextPatternType);
+        }
+
+        // Then do the same for the dest buffer
+        memcpy(endingBuffer, m_leds, getBufferSize());
+    }
+    // Now smoothly crossfade the alpha of one to the other over our duration
+    float percentage = getPercentagePassed();
+    int alpha = 255 - percentage*255; // value from 0-255
+    alpha++; // Value from 1-256, so we can shift instead of multiply or divide
+    int inverse = 257 - alpha; // value for the fade in
+
+    for (int i= 0; i < m_ledCount; i++) {
+        m_leds[i].red = (startingBuffer[i].red * alpha + endingBuffer[i].red*inverse) >> 8;
+        m_leds[i].green = (startingBuffer[i].green * alpha + endingBuffer[i].green*inverse) >> 8;
+        m_leds[i].blue = (startingBuffer[i].blue * alpha + endingBuffer[i].blue*inverse) >> 8;
+    }
+}
+
+
+// https://github.com/adafruit/LPD8806/blob/master/examples/LEDbeltKit_alt/LEDbeltKit_alt.pde
+// renderEffect03
+void LEDPatterns::flagEffect() {
+    if (!shouldUpdatePattern()) {
+        return;
+    }
+
+    if (m_firstTime) {
+        //  fxVars[backImgIdx][0] = 1;           // Mark back image as initialized
+
+    }
+//    
+//    // Data for American-flag-like colors (20 pixels representing
+//    // blue field, stars and stripes).  This gets "stretched" as needed
+//    // to the full LED strip length in the flag effect code, below.
+//    // Can change this data to the colors of your own national flag,
+//    // favorite sports team colors, etc.  OK to change number of elements.
+//#define C_RED   CRGB(160,   0,   0)
+//#define C_WHITE CRGB::White
+//#define C_BLUE    CRGB(0,   0, 100)
+//     CRGB flagTable[]  = {
+//        C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE,
+//        C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED ,
+//        C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED };
+//    
+//    // Wavy flag effect
+//    long i, sum, s, x;
+//    int  idx1, idx2, a, b;
+//    
+//    if(fxVars[idx][0] == 0) { // Initialize effect?
+//        fxVars[idx][1] = 720 + random(720); // Wavyness
+//        fxVars[idx][2] = 4 + random(10);    // Wave speed
+//        fxVars[idx][3] = 200 + random(200); // Wave 'puckeryness'
+//        fxVars[idx][4] = 0;                 // Current  position
+//        fxVars[idx][0] = 1;                 // Effect initialized
+//    }
+//    for(sum=0, i=0; i<numPixels-1; i++) {
+//        sum += fxVars[idx][3] + fixCos(fxVars[idx][4] + fxVars[idx][1] *
+//                                       i / numPixels);
+//    }
+//    
+//    byte *ptr = &imgData[idx][0];
+//    for(s=0, i=0; i<numPixels; i++) {
+//        x = 256L * ((sizeof(flagTable) / 3) - 1) * s / sum;
+//        idx1 =  (x >> 8)      * 3;
+//        idx2 = ((x >> 8) + 1) * 3;
+//        b    = (x & 255) + 1;
+//        a    = 257 - b;
+//        *ptr++ = ((pgm_read_byte(&flagTable[idx1    ]) * a) +
+//                  (pgm_read_byte(&flagTable[idx2    ]) * b)) >> 8;
+//        *ptr++ = ((pgm_read_byte(&flagTable[idx1 + 1]) * a) +
+//                  (pgm_read_byte(&flagTable[idx2 + 1]) * b)) >> 8;
+//        *ptr++ = ((pgm_read_byte(&flagTable[idx1 + 2]) * a) +
+//                  (pgm_read_byte(&flagTable[idx2 + 2]) * b)) >> 8;
+//        s += fxVars[idx][3] + fixCos(fxVars[idx][4] + fxVars[idx][1] *
+//                                     i / numPixels);
+//    }
+//    
+//    fxVars[idx][4] += fxVars[idx][2];
+//    if(fxVars[idx][4] >= 720) fxVars[idx][4] -= 720;
+
+
+    
 }
 
 void LEDPatterns::rotatingBottomGlow() {
