@@ -62,6 +62,8 @@ typedef enum : int16_t {
     
     LEDPatternTypeBlink,
     
+    LEDPatternTypeFire,
+    
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
 } LEDPatternType;
@@ -82,10 +84,10 @@ private:
     CRGB m_patternColor;
     
     // Extra state/info for some patterns
-    int m_initialPixel;
-    int m_initialPixel1;
-    int m_initialPixel2;
-    int m_initialPixel3;
+    uint32_t m_initialPixel;
+    uint32_t m_initialPixel1;
+    uint32_t m_initialPixel2;
+    uint32_t m_initialPixel3;
     
     CRGB *m_ledTempBuffer1;
     CRGB *m_ledTempBuffer2;
@@ -144,6 +146,7 @@ private: // Patterns
     void randomGradients();
     int gradientOverXPixels(int pixel, int fullCount, int offCount, int fadeCount, CRGB color);
     void blinkPattern();
+    void firePattern();
 
 #if SD_CARD_SUPPORT
     // Image based patterns from an SD card

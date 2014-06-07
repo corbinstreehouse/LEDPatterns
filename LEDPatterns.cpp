@@ -73,6 +73,8 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeMax:
         case LEDPatternTypeBlink:
             return false;
+        case LEDPatternTypeFire:
+            return true;
     }
 }
 
@@ -276,6 +278,10 @@ void LEDPatterns::show() {
         }
         case LEDPatternTypeBlink: {
             blinkPattern();
+            break;
+        }
+        case LEDPatternTypeFire: {
+            firePattern();
             break;
         }
         case LEDPatternTypeAllOff: {
@@ -1279,6 +1285,74 @@ void LEDPatterns::blinkPattern() {
         fill_solid(m_leds, m_ledCount, m_patternColor);
     } else {
         fill_solid(m_leds, m_ledCount, CRGB::Black);
+    }
+}
+
+void LEDPatterns::firePattern() {
+    // COOLING: How much does the air cool as it rises?
+    // Less cooling = taller flames.  More cooling = shorter flames.
+    // Default 50, suggested range 20-100
+#define COOLING  80
+    
+    // SPARKING: What chance (out of 255) is there that a new spark will be lit?
+    // Higher chance = more roaring fire.  Lower chance = more flickery fire.
+    // Default 120, suggested range 50-200.
+#define SPARKING 130
+
+    // Array of temperature readings at each simulation cell
+    byte *heat = (byte *)getTempBuffer1();
+    byte *heat2 = (byte *)getTempBuffer2();
+    
+    if (m_firstTime) {
+        m_initialPixel = millis(); // Use for timing
+        for (int i = 0; i < m_ledCount; i++) {
+            heat[i] = 0; // random8(255);
+            heat2[i] = 0;
+        }
+    } else {
+        // Update every 1/60 second
+        uint32_t now = millis();
+        if (now - m_initialPixel >= ((1.0/60.0)*1000.0)) {
+            // enough time passed!
+            m_initialPixel = now;
+        } else {
+            // not enough time passed;...
+            return;
+        }
+    }
+
+    int count = m_ledCount / 2;
+    int secondHalfCount = m_ledCount - count;
+    if (secondHalfCount > count) {
+        count = secondHalfCount;
+    }
+    
+    // Step 1.  Cool down every cell a little
+    for( int i = 0; i < count; i++) {
+        heat[i] = qsub8( heat[i],  random(0, ((COOLING * 10) / count) + 2));
+        heat2[i] = qsub8( heat2[i],  random(0, ((COOLING * 10) / count) + 2));
+    }
+    
+    // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+    for( int k= count - 3; k > 0; k--) {
+        heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+        heat2[k] = (heat2[k - 1] + heat2[k - 2] + heat2[k - 2] ) / 3;
+    }
+    
+    // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
+    if( random(255) < SPARKING ) {
+        int y = random(7);
+        heat[y] = qadd8( heat[y], random(160,255) );
+        y = random(7);
+        heat2[y] = qadd8( heat2[y], random(160,255) );
+    }
+    
+    // Step 4.  Map from heat cells to LED colors
+    int k = m_ledCount - 1;
+    for( int j = 0; j < count; j++) {
+        m_leds[j] = HeatColor( heat[j]);
+        m_leds[k] = HeatColor(heat2[j]);
+        k--;
     }
 }
 
