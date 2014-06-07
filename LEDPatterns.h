@@ -63,6 +63,7 @@ typedef enum : int16_t {
     LEDPatternTypeBlink,
     
     LEDPatternTypeFire,
+    LEDPatternTypeBlueFire,
     
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
@@ -147,6 +148,8 @@ private: // Patterns
     int gradientOverXPixels(int pixel, int fullCount, int offCount, int fadeCount, CRGB color);
     void blinkPattern();
     void firePattern();
+    void blueFirePattern();
+    void firePatternWithColor(bool blue);
 
 #if SD_CARD_SUPPORT
     // Image based patterns from an SD card

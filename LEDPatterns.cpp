@@ -74,7 +74,9 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeBlink:
             return false;
         case LEDPatternTypeFire:
+        case LEDPatternTypeBlueFire:
             return true;
+            
     }
 }
 
@@ -282,6 +284,10 @@ void LEDPatterns::show() {
         }
         case LEDPatternTypeFire: {
             firePattern();
+            break;
+        }
+        case LEDPatternTypeBlueFire: {
+            blueFirePattern();
             break;
         }
         case LEDPatternTypeAllOff: {
@@ -1288,7 +1294,45 @@ void LEDPatterns::blinkPattern() {
     }
 }
 
-void LEDPatterns::firePattern() {
+
+static CRGB HeatColorBlue( uint8_t temperature)
+{
+    CRGB heatcolor;
+    
+    // Scale 'heat' down from 0-255 to 0-191,
+    // which can then be easily divided into three
+    // equal 'thirds' of 64 units each.
+    uint8_t t192 = scale8_video( temperature, 192);
+    
+    // calculate a value that ramps up from
+    // zero to 255 in each 'third' of the scale.
+    uint8_t heatramp = t192 & 0x3F; // 0..63
+    heatramp <<= 2; // scale up to 0..252
+    
+    // now figure out which third of the spectrum we're in:
+    if( t192 & 0x80) {
+        // we're in the hottest third
+        heatcolor.r = heatramp; // full red
+        heatcolor.g = 255; // full green
+        heatcolor.b = 255; // ramp up blue
+        
+    } else if( t192 & 0x40 ) {
+        // we're in the middle third
+        heatcolor.r = 0; // full red
+        heatcolor.g = heatramp; // ramp up green
+        heatcolor.b = 255; // no blue
+        
+    } else {
+        // we're in the coolest third
+        heatcolor.r = 0; //
+        heatcolor.g = 0; //
+        heatcolor.b = heatramp; //
+    }
+    
+    return heatcolor;
+}
+
+void LEDPatterns::firePatternWithColor(bool blue) {
     // COOLING: How much does the air cool as it rises?
     // Less cooling = taller flames.  More cooling = shorter flames.
     // Default 50, suggested range 20-100
@@ -1350,10 +1394,23 @@ void LEDPatterns::firePattern() {
     // Step 4.  Map from heat cells to LED colors
     int k = m_ledCount - 1;
     for( int j = 0; j < count; j++) {
-        m_leds[j] = HeatColor( heat[j]);
-        m_leds[k] = HeatColor(heat2[j]);
+        if (blue) {
+            m_leds[j] = HeatColorBlue( heat[j]);
+            m_leds[k] = HeatColorBlue(heat2[j]);
+        } else {
+            m_leds[j] = HeatColor( heat[j]);
+            m_leds[k] = HeatColor(heat2[j]);
+        }
         k--;
     }
+}
+
+void LEDPatterns::firePattern() {
+    firePatternWithColor(false);
+}
+
+void LEDPatterns::blueFirePattern() {
+    firePatternWithColor(true);
 }
 
 void LEDPatterns::rotatingBottomGlow() {
