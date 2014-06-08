@@ -76,6 +76,7 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeFire:
         case LEDPatternTypeBlueFire:
         case LEDPatternFlagEffect:
+        case LEDPatternTypeSinWave:
             return true;
         case LEDPatternTypeCrossfade:
             return false;
@@ -292,6 +293,9 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
         }
         case LEDPatternTypeCrossfade: {
             crossFadeToNextPattern();
+            break;
+        }case LEDPatternTypeSinWave: {
+            sinWaveDemoEffect();
             break;
         }
             
@@ -1636,6 +1640,41 @@ void LEDPatterns::flagEffect() {
     
     m_initialPixel3 += m_initialPixel1;
     if (m_initialPixel3 >= 720) m_initialPixel3 -= 720;
+}
+
+void LEDPatterns::sinWaveDemoEffect() {
+    if (!shouldUpdatePattern()) {
+        return;
+    }
+
+    if (m_firstTime) {
+        m_initialPixel = random(1536); // Random hue
+        // Number of repetitions (complete loops around color wheel);
+        // any more than 4 per meter just looks too chaotic.
+        // Store as distance around complete belt in half-degree units:
+        m_initialPixel1 = (1 + random(4 * ((m_ledCount + 31) / 32))) * 720;
+        // Frame-to-frame increment (speed) -- may be positive or negative,
+        // but magnitude shouldn't be so small as to be boring.  It's generally
+        // still less than a full pixel per frame, making motion very smooth.
+        m_initialPixel2 = 4 + random(m_initialPixel) / m_ledCount;
+        // Reverse direction half the time.
+        if(random(2) == 0) m_initialPixel2 = -m_initialPixel2;
+        m_initialPixel3 = 0; // Current position
+    }
+    
+    for(int i=0; i<m_ledCount; i++) {
+        int foo = fixSin(m_initialPixel3 + m_initialPixel1 * i / m_ledCount);
+        // Peaks of sine wave are white, troughs are black, mid-range
+        // values are pure hue (100% saturated).
+        if (foo >= 0) {
+            CHSV hsv = CHSV(m_initialPixel, 254 - (foo * 2), 255);
+            hsv2rgb_rainbow(hsv, m_leds[i]);
+        } else {
+            CHSV hsv = CHSV(m_initialPixel, 255, 254 + foo * 2);
+            hsv2rgb_rainbow(hsv, m_leds[i]);
+        }
+    }
+    m_initialPixel3 += m_initialPixel2;
 }
 
 void LEDPatterns::rotatingBottomGlow() {

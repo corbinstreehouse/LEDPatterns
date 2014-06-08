@@ -68,6 +68,7 @@ typedef enum : int16_t {
     LEDPatternFlagEffect,
     
     LEDPatternTypeCrossfade,
+    LEDPatternTypeSinWave, 
     
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
@@ -160,6 +161,7 @@ private: // Patterns
     void blueFirePattern();
     void firePatternWithColor(bool blue);
     void flagEffect();
+    void sinWaveDemoEffect();
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();
