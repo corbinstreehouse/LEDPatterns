@@ -1353,14 +1353,14 @@ static CRGB HeatColorBlue( uint8_t temperature)
 // For 60-hrz based patterns
 bool LEDPatterns::shouldUpdatePattern() {
     if (m_firstTime) {
-        m_initialPixel = millis(); // Use for timing
+        m_timedPattern = millis(); // Use for timing
         return true;
     } else {
         // Update every 1/60 second
         uint32_t now = millis();
-        if (now - m_initialPixel >= ((1.0/60.0)*1000.0)) {
+        if (now - m_timedPattern >= ((1.0/60.0)*1000.0)) {
             // enough time passed!
-            m_initialPixel = now;
+            m_timedPattern = now;
             return true;
         } else {
             // not enough time passed;...
@@ -1474,6 +1474,92 @@ void LEDPatterns::crossFadeToNextPattern() {
 }
 
 
+// The fixed-point sine and cosine functions use marginally more
+// conventional units, equal to 1/2 degree (720 units around full circle),
+// chosen because this gives a reasonable resolution for the given output
+// range (-127 to +127).  Sine table intentionally contains 181 (not 180)
+// elements: 0 to 180 *inclusive*.  This is normal.
+
+byte sineTable[181]  = {
+    0,  1,  2,  3,  5,  6,  7,  8,  9, 10, 11, 12, 13, 15, 16, 17,
+    18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32, 33, 34,
+    35, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
+    67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 77, 78, 79, 80, 81,
+    82, 83, 83, 84, 85, 86, 87, 88, 88, 89, 90, 91, 92, 92, 93, 94,
+    95, 95, 96, 97, 97, 98, 99,100,100,101,102,102,103,104,104,105,
+    105,106,107,107,108,108,109,110,110,111,111,112,112,113,113,114,
+    114,115,115,116,116,117,117,117,118,118,119,119,120,120,120,121,
+    121,121,122,122,122,123,123,123,123,124,124,124,124,125,125,125,
+    125,125,126,126,126,126,126,126,126,127,127,127,127,127,127,127,
+    127,127,127,127,127
+};
+
+char fixSin(int angle) {
+    angle %= 720;               // -719 to +719
+    if(angle < 0) angle += 720; //    0 to +719
+    return (angle <= 360) ?
+        sineTable[(angle <= 180) ?
+                             angle          : // Quadrant 1
+                             (360 - angle)] : // Quadrant 2
+        -sineTable[(angle <= 540) ?
+                              (angle - 360)   : // Quadrant 3
+                              (720 - angle)] ; // Quadrant 4
+}
+
+char fixCos(int angle) {
+    angle %= 720;               // -719 to +719
+    if(angle < 0) angle += 720; //    0 to +719
+    return (angle <= 360) ?
+        ((angle <= 180) ?  (sineTable[180 - angle])  : // Quad 1
+         -(sineTable[angle - 180])) : // Quad 2
+        ((angle <= 540) ? -(sineTable[540 - angle])  : // Quad 3
+         (sineTable[angle - 540])) ; // Quad 4
+}
+
+// TODO: corbin, move to the HSV class stuff
+static CHSV rgb2hsv(CRGB in)
+{
+    CHSV         out;
+    double      min, max, delta;
+    
+    min = in.r < in.g ? in.r : in.g;
+    min = min  < in.b ? min  : in.b;
+    
+    max = in.r > in.g ? in.r : in.g;
+    max = max  > in.b ? max  : in.b;
+    
+    out.v = max;                                // v
+    delta = max - min;
+    if( max > 0.0 ) {
+        out.s = (delta / max);                  // s
+    } else {
+        // r = g = b = 0                        // s = 0, v is undefined
+        out.s = 0.0;
+        out.h = 255;                            // its now undefined
+        return out;
+    }
+    
+    int hue;
+    if( in.r >= max )                           // > is bogus, just keeps compiler happy
+        hue = ( in.g - in.b ) / delta;        // between yellow & magenta
+    else
+        if( in.g >= max )
+            hue = 2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
+        else
+            hue = 4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
+    
+    hue *= 60.0;                              // degrees
+    
+    if( hue < 0.0 )
+        hue += 360.0;
+    
+    out.h = ((float)hue/360.0*255.0); // 1-255
+    
+    return out;
+}
+
+
 // https://github.com/adafruit/LPD8806/blob/master/examples/LEDbeltKit_alt/LEDbeltKit_alt.pde
 // renderEffect03
 void LEDPatterns::flagEffect() {
@@ -1485,55 +1571,82 @@ void LEDPatterns::flagEffect() {
         //  fxVars[backImgIdx][0] = 1;           // Mark back image as initialized
 
     }
-//    
-//    // Data for American-flag-like colors (20 pixels representing
-//    // blue field, stars and stripes).  This gets "stretched" as needed
-//    // to the full LED strip length in the flag effect code, below.
-//    // Can change this data to the colors of your own national flag,
-//    // favorite sports team colors, etc.  OK to change number of elements.
-//#define C_RED   CRGB(160,   0,   0)
-//#define C_WHITE CRGB::White
-//#define C_BLUE    CRGB(0,   0, 100)
-//     CRGB flagTable[]  = {
-//        C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE,
-//        C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED ,
-//        C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED };
-//    
-//    // Wavy flag effect
-//    long i, sum, s, x;
-//    int  idx1, idx2, a, b;
-//    
-//    if(fxVars[idx][0] == 0) { // Initialize effect?
-//        fxVars[idx][1] = 720 + random(720); // Wavyness
-//        fxVars[idx][2] = 4 + random(10);    // Wave speed
-//        fxVars[idx][3] = 200 + random(200); // Wave 'puckeryness'
-//        fxVars[idx][4] = 0;                 // Current  position
-//        fxVars[idx][0] = 1;                 // Effect initialized
-//    }
-//    for(sum=0, i=0; i<numPixels-1; i++) {
-//        sum += fxVars[idx][3] + fixCos(fxVars[idx][4] + fxVars[idx][1] *
-//                                       i / numPixels);
-//    }
-//    
-//    byte *ptr = &imgData[idx][0];
-//    for(s=0, i=0; i<numPixels; i++) {
-//        x = 256L * ((sizeof(flagTable) / 3) - 1) * s / sum;
-//        idx1 =  (x >> 8)      * 3;
-//        idx2 = ((x >> 8) + 1) * 3;
-//        b    = (x & 255) + 1;
-//        a    = 257 - b;
-//        *ptr++ = ((pgm_read_byte(&flagTable[idx1    ]) * a) +
-//                  (pgm_read_byte(&flagTable[idx2    ]) * b)) >> 8;
-//        *ptr++ = ((pgm_read_byte(&flagTable[idx1 + 1]) * a) +
-//                  (pgm_read_byte(&flagTable[idx2 + 1]) * b)) >> 8;
-//        *ptr++ = ((pgm_read_byte(&flagTable[idx1 + 2]) * a) +
-//                  (pgm_read_byte(&flagTable[idx2 + 2]) * b)) >> 8;
-//        s += fxVars[idx][3] + fixCos(fxVars[idx][4] + fxVars[idx][1] *
-//                                     i / numPixels);
-//    }
-//    
-//    fxVars[idx][4] += fxVars[idx][2];
-//    if(fxVars[idx][4] >= 720) fxVars[idx][4] -= 720;
+    
+    // Data for American-flag-like colors (20 pixels representing
+    
+    // blue field, stars and stripes).  This gets "stretched" as needed
+    // to the full LED strip length in the flag effect code, below.
+    // Can change this data to the colors of your own national flag,
+    // favorite sports team colors, etc.  OK to change number of elements.
+#define C_RED   CRGB::Red // CRGB(160,   0,   0)
+#define C_WHITE CRGB::White
+#define C_BLUE  CRGB::Blue //  CRGB(0,   0, 100)
+     CRGB flagTable[]  = {
+        C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE,
+        C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED ,
+        C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED };
+    
+    // Wavy flag effect
+    int i, sum, s;
+    int  a, b;
+    
+
+    if (m_firstTime) {
+        m_initialPixel = 720 + random(720); // Wavyness
+        m_initialPixel1 = 4 + random(10);    // Wave speed
+        m_initialPixel2 = 200 + random(200); // Wave 'puckeryness'
+        m_initialPixel3 = 0;                 // Current  position
+    }
+    for(sum=0, i=0; i<m_ledCount-1; i++) {
+        sum += m_initialPixel2 + fixCos(m_initialPixel3 + m_initialPixel *
+                                       i / m_ledCount);
+    }
+    
+    
+    CRGB *pixel = &m_leds[0];
+    for(s=0, i=0; i<m_ledCount; i++) {
+        int x = 256L * ((sizeof(flagTable)) / sizeof(CRGB) - 1) * s / sum;
+        int idx1 =  (x >> 8);
+        int idx2 = ((x >> 8) + 1);
+        
+        // this mixture is wrong; I'm not sure why, or if it is something I'm doing funky..
+        b    = (x & 255) + 1;
+        a    = 257 - b;
+//        NSLog(@"x=%d, idx1:%d a:%d b%d", x, idx1, a, b);
+//        
+//        CHSV firstColor = rgb2hsv(flagTable[idx1]);
+//        CHSV secondColor = rgb2hsv(flagTable[idx2]);
+//        
+//        CHSV combined;
+//        combined.hue = (((firstColor.hue) * a) +
+//                  ((secondColor.hue) * b)) >> 8;
+//        combined.sat = (((firstColor.sat) * a) +
+//                  ((secondColor.sat) * b)) >> 8;
+//        combined.value = (((firstColor.v) * a) +
+//                  ((secondColor.v) * b)) >> 8;
+//        
+//        *pixel = combined;
+//        
+//
+//        pixel->red = (((flagTable[idx1].red) * a) +
+//                  ((flagTable[idx2].red) * b)) >> 8;
+//        pixel->green = (((flagTable[idx1 + 1].green) * a) +
+//                  ((flagTable[idx2 + 1].green) * b)) >> 8;
+//        pixel->blue = (((flagTable[idx1 + 2].blue) * a) +
+//                  ((flagTable[idx2 + 2].blue) * b)) >> 8;
+        
+//        m_leds[i].red = (startingBuffer[i].red * alpha + endingBuffer[i].red*inverse) >> 8;
+//        m_leds[i].green = (startingBuffer[i].green * alpha + endingBuffer[i].green*inverse) >> 8;
+//        m_leds[i].blue = (startingBuffer[i].blue * alpha + endingBuffer[i].blue*inverse) >> 8;
+        *pixel = flagTable[idx1];
+        
+        s += m_initialPixel2 + fixCos(m_initialPixel3 + m_initialPixel *
+                                     i / m_ledCount);
+        pixel++;
+    }
+    
+    m_initialPixel3 += m_initialPixel1;
+    if (m_initialPixel3 >= 720) m_initialPixel3 -= 720;
 
 
     

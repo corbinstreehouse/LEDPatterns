@@ -86,10 +86,12 @@ private:
     uint32_t m_timePassed;
     int m_intervalCount;
     
+    
+    uint32_t m_timedPattern;
     // Stuff that applies to only certain patterns
     CRGB m_patternColor;
     
-    // Extra state/info for some patterns
+    // Extra state/info for some patterns.... name is irrelevant
     uint32_t m_initialPixel;
     uint32_t m_initialPixel1;
     uint32_t m_initialPixel2;
