@@ -1517,48 +1517,44 @@ char fixCos(int angle) {
          (sineTable[angle - 540])) ; // Quad 4
 }
 
+
+/*static double threeway_max(double a, double b, double c) {
+    return MAX(a, MAX(b, c));
+}
+
+static  double threeway_min(double a, double b, double c) {
+    return MIN(a, MIN(b, c));
+}
+
 // TODO: corbin, move to the HSV class stuff
 static CHSV rgb2hsv(CRGB in)
 {
-    CHSV         out;
-    double      min, max, delta;
+    double rd = (double) in.r/255;
+    double gd = (double) in.g/255;
+    double bd = (double) in.b/255;
+    double max = threeway_max(rd, gd, bd);
+    double min = threeway_min(rd, gd, bd);
+    double h, s, l = (max + min) / 2;
     
-    min = in.r < in.g ? in.r : in.g;
-    min = min  < in.b ? min  : in.b;
-    
-    max = in.r > in.g ? in.r : in.g;
-    max = max  > in.b ? max  : in.b;
-    
-    out.v = max;                                // v
-    delta = max - min;
-    if( max > 0.0 ) {
-        out.s = (delta / max);                  // s
+    if (max == min) {
+        h = s = 0; // achromatic
     } else {
-        // r = g = b = 0                        // s = 0, v is undefined
-        out.s = 0.0;
-        out.h = 255;                            // its now undefined
-        return out;
+        double d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        if (max == rd) {
+            h = (gd - bd) / d + (gd < bd ? 6 : 0);
+        } else if (max == gd) {
+            h = (bd - rd) / d + 2;
+        } else if (max == bd) {
+            h = (rd - gd) / d + 4;
+        } else {
+            h = 0;
+        }
+        h /= 6;
     }
-    
-    int hue;
-    if( in.r >= max )                           // > is bogus, just keeps compiler happy
-        hue = ( in.g - in.b ) / delta;        // between yellow & magenta
-    else
-        if( in.g >= max )
-            hue = 2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
-        else
-            hue = 4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
-    
-    hue *= 60.0;                              // degrees
-    
-    if( hue < 0.0 )
-        hue += 360.0;
-    
-    out.h = ((float)hue/360.0*255.0); // 1-255
-    
-    return out;
+    return CHSV(h*255, s*255, l*255);
 }
-
+*/
 
 // https://github.com/adafruit/LPD8806/blob/master/examples/LEDbeltKit_alt/LEDbeltKit_alt.pde
 // renderEffect03
@@ -1567,30 +1563,23 @@ void LEDPatterns::flagEffect() {
         return;
     }
 
-    if (m_firstTime) {
-        //  fxVars[backImgIdx][0] = 1;           // Mark back image as initialized
-
-    }
-    
     // Data for American-flag-like colors (20 pixels representing
-    
     // blue field, stars and stripes).  This gets "stretched" as needed
     // to the full LED strip length in the flag effect code, below.
     // Can change this data to the colors of your own national flag,
     // favorite sports team colors, etc.  OK to change number of elements.
-#define C_RED   CRGB::Red // CRGB(160,   0,   0)
+#define C_RED    CRGB(160,   0,   0)
 #define C_WHITE CRGB::White
-#define C_BLUE  CRGB::Blue //  CRGB(0,   0, 100)
+#define C_BLUE  CRGB(0,   0, 100)
      CRGB flagTable[]  = {
-        C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE,
-        C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED ,
-        C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED };
+        C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE , C_WHITE, C_BLUE, C_WHITE, C_BLUE, C_WHITE, C_BLUE,
+        C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED , C_WHITE, C_RED ,
+        C_WHITE, C_RED  , C_WHITE, C_RED  , C_WHITE, C_RED, C_WHITE, C_RED };
     
     // Wavy flag effect
     int i, sum, s;
     int  a, b;
     
-
     if (m_firstTime) {
         m_initialPixel = 720 + random(720); // Wavyness
         m_initialPixel1 = 4 + random(10);    // Wave speed
@@ -1598,8 +1587,7 @@ void LEDPatterns::flagEffect() {
         m_initialPixel3 = 0;                 // Current  position
     }
     for(sum=0, i=0; i<m_ledCount-1; i++) {
-        sum += m_initialPixel2 + fixCos(m_initialPixel3 + m_initialPixel *
-                                       i / m_ledCount);
+        sum += m_initialPixel2 + fixCos(m_initialPixel3 + m_initialPixel * i / m_ledCount);
     }
     
     
@@ -1612,33 +1600,34 @@ void LEDPatterns::flagEffect() {
         // this mixture is wrong; I'm not sure why, or if it is something I'm doing funky..
         b    = (x & 255) + 1;
         a    = 257 - b;
-//        NSLog(@"x=%d, idx1:%d a:%d b%d", x, idx1, a, b);
-//        
-//        CHSV firstColor = rgb2hsv(flagTable[idx1]);
-//        CHSV secondColor = rgb2hsv(flagTable[idx2]);
-//        
-//        CHSV combined;
-//        combined.hue = (((firstColor.hue) * a) +
-//                  ((secondColor.hue) * b)) >> 8;
-//        combined.sat = (((firstColor.sat) * a) +
-//                  ((secondColor.sat) * b)) >> 8;
-//        combined.value = (((firstColor.v) * a) +
-//                  ((secondColor.v) * b)) >> 8;
-//        
-//        *pixel = combined;
-//        
-//
-//        pixel->red = (((flagTable[idx1].red) * a) +
-//                  ((flagTable[idx2].red) * b)) >> 8;
-//        pixel->green = (((flagTable[idx1 + 1].green) * a) +
-//                  ((flagTable[idx2 + 1].green) * b)) >> 8;
-//        pixel->blue = (((flagTable[idx1 + 2].blue) * a) +
-//                  ((flagTable[idx2 + 2].blue) * b)) >> 8;
+#if HSV_blend
+        CHSV firstColor = rgb2hsv(flagTable[idx1]);
+        CHSV secondColor = rgb2hsv(flagTable[idx2]);
+
+        CHSV combined;
+        combined.hue = (((firstColor.hue) * a) +
+                  ((secondColor.hue) * b)) >> 8;
+        combined.sat = (((firstColor.sat) * a) +
+                  ((secondColor.sat) * b)) >> 8;
+        combined.value = (((firstColor.v) * a) +
+                  ((secondColor.v) * b)) >> 8;
         
-//        m_leds[i].red = (startingBuffer[i].red * alpha + endingBuffer[i].red*inverse) >> 8;
-//        m_leds[i].green = (startingBuffer[i].green * alpha + endingBuffer[i].green*inverse) >> 8;
-//        m_leds[i].blue = (startingBuffer[i].blue * alpha + endingBuffer[i].blue*inverse) >> 8;
+        *pixel = combined;
+#endif
+
+#if 1  // RGB_blend
+        pixel->red = (((flagTable[idx1].red) * a) +
+                  ((flagTable[idx2].red) * b)) >> 8;
+        pixel->green = (((flagTable[idx1].green) * a) +
+                  ((flagTable[idx2].green) * b)) >> 8;
+        pixel->blue = (((flagTable[idx1].blue) * a) +
+                  ((flagTable[idx2].blue) * b)) >> 8;
+        
+#endif
+        
+#if No_blend
         *pixel = flagTable[idx1];
+#endif
         
         s += m_initialPixel2 + fixCos(m_initialPixel3 + m_initialPixel *
                                      i / m_ledCount);
@@ -1647,9 +1636,6 @@ void LEDPatterns::flagEffect() {
     
     m_initialPixel3 += m_initialPixel1;
     if (m_initialPixel3 >= 720) m_initialPixel3 -= 720;
-
-
-    
 }
 
 void LEDPatterns::rotatingBottomGlow() {
