@@ -69,6 +69,7 @@ typedef enum : int16_t {
     
     LEDPatternTypeCrossfade,
     LEDPatternTypeSinWave, 
+    LEDPatternTypeFunkyClouds,
     
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
@@ -86,6 +87,7 @@ private:
     uint32_t m_duration;
     uint32_t m_timePassed;
     int m_intervalCount;
+    int m_lastIntervalCount;
     
     
     uint32_t m_timedPattern;
@@ -115,7 +117,7 @@ private:
     uint32_t m_dataOffsetReadIntoBuffer1;
     uint32_t m_dataOffsetReadIntoBuffer2;
     
-    char *m_dataFilename; // a reference! not copied
+    const char *m_dataFilename; // a reference! not copied
     uint32_t m_dataLength;
     uint32_t m_dataOffset;
     
@@ -162,6 +164,7 @@ private: // Patterns
     void firePatternWithColor(bool blue);
     void flagEffect();
     void sinWaveDemoEffect();
+    void funkyCloudsPattern();
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();
@@ -227,7 +230,7 @@ public:
     
 #if SD_CARD_SUPPORT
     // For LEDPatternTypeImage, you MUST set the data info. A file can have the image data anywhere inside of it, and dataOffset indicates the offset starting into the file.
-    inline void setDataInfo(char *filename, uint32_t dataLength, uint32_t dataOffset = 0) {
+    inline void setDataInfo(const char *filename, uint32_t dataLength, uint32_t dataOffset = 0) {
         m_dataFilename = filename; m_dataLength = dataLength; m_dataOffset = dataOffset;
     };
 #endif

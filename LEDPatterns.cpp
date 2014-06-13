@@ -76,8 +76,11 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeFire:
         case LEDPatternTypeBlueFire:
         case LEDPatternFlagEffect:
-        case LEDPatternTypeSinWave:
+        case LEDPatternTypeFunkyClouds:
             return true;
+        case LEDPatternTypeSinWave:
+            // restarts every duration and generates a new seed/pattern
+            return false;
         case LEDPatternTypeCrossfade:
             return false;
             
@@ -90,6 +93,7 @@ void LEDPatterns::setPatternType(LEDPatternType type) {
     m_startTime = millis();
     m_firstTime = true;
     m_intervalCount = 0;
+    m_lastIntervalCount = 0;
     m_loopCount = 0;
     m_count = 0;
 }
@@ -298,6 +302,10 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             sinWaveDemoEffect();
             break;
         }
+        case LEDPatternTypeFunkyClouds: {
+            funkyCloudsPattern();
+            break;
+        }
             
     }
     
@@ -340,6 +348,10 @@ void LEDPatterns::show() {
         // Since it isn't continuous, modify the timePassed here
         if (m_intervalCount > 0) {
             m_timePassed = m_timePassed - m_intervalCount*m_duration;
+            if (m_intervalCount > m_lastIntervalCount) {
+                m_lastIntervalCount = m_intervalCount;
+                m_firstTime = true;
+            }
         }
     }
 
@@ -427,6 +439,7 @@ static void fade(unsigned char *val, unsigned char fadeTime)
 // a fade-out effect.
 void LEDPatterns::randomColorWalk(unsigned char initializeColors, unsigned char dimOnly)
 {
+    
     const unsigned char maxBrightness = 180;  // cap on LED brightness
     const unsigned char changeAmount = 3;  // size of random walk step
     
@@ -516,6 +529,13 @@ void LEDPatterns::randomColorWalk(unsigned char initializeColors, unsigned char 
 // set shifted over one LED.
 void LEDPatterns::traditionalColors()
 {
+    
+#if PATTERN_EDITOR
+    // slow it down..
+    if (!shouldUpdatePattern()) {
+        return;
+    }
+#endif
     // loop counts to leave strip initially dark
     const unsigned char initialDarkCycles = 10;
     // loop counts it takes to go from full off to fully bright
@@ -657,6 +677,13 @@ static void colorExplosionColorAdjust(unsigned char *color, unsigned char propCh
 // the BrightTwinkle pattern do not propagate to neighboring LEDs.
 void LEDPatterns::colorExplosion(bool noNewBursts)
 {
+    
+#if PATTERN_EDITOR
+    // slow it down..
+    if (!shouldUpdatePattern()) {
+        return;
+    }
+#endif
     // adjust the colors of the first LED
     colorExplosionColorAdjust(&m_leds[0].red, 9, (unsigned char*)0, &m_leds[1].red);
     colorExplosionColorAdjust(&m_leds[0].green, 9, (unsigned char*)0, &m_leds[1].green);
@@ -845,6 +872,14 @@ void LEDPatterns::pololuGradient()
 // this BrightTwinkle pattern do not propagate to neighboring LEDs.
 void LEDPatterns::brightTwinkle(unsigned char minColor, unsigned char numColors, unsigned char noNewBursts)
 {
+#if PATTERN_EDITOR
+    // slow it down..
+    if (!shouldUpdatePattern()) {
+        return;
+    }
+#endif
+
+    
     // Note: the colors themselves are used to encode additional state
     // information.  If the color is one less than a power of two
     // (but not 255), the color will get approximately twice as bright.
@@ -925,6 +960,12 @@ void LEDPatterns::brightTwinkle(unsigned char minColor, unsigned char numColors,
 // still in progress).
 unsigned char LEDPatterns::collision()
 {
+#if PATTERN_EDITOR
+    // slow it down..
+    if (!shouldUpdatePattern()) {
+        return 0;
+    }
+#endif
     const unsigned char maxBrightness = 180;  // max brightness for the colors
     const unsigned char numCollisions = 5;  // # of collisions before pattern ends
     
@@ -1642,6 +1683,115 @@ void LEDPatterns::flagEffect() {
     if (m_initialPixel3 >= 720) m_initialPixel3 -= 720;
 }
 
+// finds the right index for a S shaped matrix
+// ...maybe you need a different mapping for your setup
+int XY(int x, int y, int WIDTH, int HEIGHT) {
+    if(y > HEIGHT) { y = HEIGHT; }
+    if(y < 0) { y = 0; }
+    if(x > WIDTH) { x = WIDTH;}
+    if(x < 0) { x = 0; }
+    if(x % 2 == 1) {
+        return (x * (WIDTH) + (HEIGHT - y -1));
+    } else {
+        // use that line only, if you have all rows beginning at the same side
+        return (x * (WIDTH) + y);
+    }
+}
+
+//  Bresenham line algorythm
+static void Line(int x0, int y0, int x1, int y1, byte color, CRGB *buffer, int WIDTH, int HEIGHT)
+{
+    int dx =  abs(x1-x0), sx = x0<x1 ? 1 : -1;
+    int dy = -abs(y1-y0), sy = y0<y1 ? 1 : -1;
+    int err = dx+dy, e2;
+    for(;;){
+        buffer[XY(x0, y0, WIDTH, HEIGHT)] += CHSV(color, 255, 255);
+        if (x0==x1 && y0==y1) break;
+        e2 = 2*err;
+        if (e2 > dy) { err += dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+}
+
+//  creates a little twister for softening
+void Spiral(int x,int y, int r, byte dimm, CRGB *leds, int WIDTH, int HEIGHT) {
+    for(int d = r; d >= 0; d--) {                // from the outside to the inside
+        for(int i = x-d; i <= x+d; i++) {
+            leds[XY(i,y-d, WIDTH, HEIGHT)] += leds[XY(i+1,y-d, WIDTH, HEIGHT)];   // lowest row to the right
+            leds[XY(i,y-d, WIDTH, HEIGHT)].nscale8( dimm );}
+        for(int i = y-d; i <= y+d; i++) {
+            leds[XY(x+d,i, WIDTH, HEIGHT)] += leds[XY(x+d,i+1, WIDTH, HEIGHT)];   // right colum up
+            leds[XY(x+d,i, WIDTH, HEIGHT)].nscale8( dimm );}
+        for(int i = x+d; i >= x-d; i--) {
+            leds[XY(i,y+d, WIDTH, HEIGHT)] += leds[XY(i-1,y+d, WIDTH, HEIGHT)];   // upper row to the left
+            leds[XY(i,y+d, WIDTH, HEIGHT)].nscale8( dimm );}
+        for(int i = y+d; i >= y-d; i--) {
+            leds[XY(x-d,i, WIDTH, HEIGHT)] += leds[XY(x-d,i-1, WIDTH, HEIGHT)];   // left colum down
+            leds[XY(x-d,i, WIDTH, HEIGHT)].nscale8( dimm );}
+    }
+}
+
+void LEDPatterns::funkyCloudsPattern() {
+    if (!shouldUpdatePattern()) {
+        return;
+    }
+    // since I found out that integers are casted impicit that part became easy...
+    // so just have 4 sinewaves with differnt speeds running
+
+//    m_initialPixel = (uint8_t)(m_initialPixel + 7);
+//    m_initialPixel1 = (uint8_t)(m_initialPixel1 + 5);
+//    m_initialPixel2 = (uint8_t)(m_initialPixel2 + 3);
+//    m_initialPixel3 = (uint8_t)(m_initialPixel3 + 2);
+    m_initialPixel = (uint8_t)(m_initialPixel + 4);
+    m_initialPixel1 = (uint8_t)(m_initialPixel1 + 3);
+    m_initialPixel2 = (uint8_t)(m_initialPixel2 + 2);
+    m_initialPixel3 = (uint8_t)(m_initialPixel3 + 1);
+    
+    int width =  floor(sqrt(m_ledCount));
+    int height = width;
+    // first plant the seed into the buffer
+    //buffer[XY(sin8(m_initialPixel)/20, cos8(m_initialPixel1)/17)] = CHSV (count[0] , 255, 255);
+    
+    //buffer[XY(sin8(m_initialPixel2)/17, cos8(m_initialPixel3)/17)] = CHSV (m_initialPixel1 , 255, 255);
+//    for(int i = 0; i < m_ledCount ; i++) {
+////        m_leds[i].fadeToBlackBy(1);
+//
+//    }
+    Line(((sin8(m_initialPixel)/17)+(sin8(m_initialPixel2)/17))/2, ((sin8(m_initialPixel1)/17)+(sin8(m_initialPixel3)/17))/2,         // combine 2 wavefunctions for more variety of x
+         ((sin8(m_initialPixel3)/17)+(sin8(m_initialPixel2)/17))/2, ((sin8(m_initialPixel1)/17)+(sin8(m_initialPixel2)/17))/2, m_initialPixel3,
+         m_leds, width, height); // and y, color just simple linear ramp
+    
+    //   just some try and error:
+    //Line(sin8(m_initialPixel3)/17, cos8(m_initialPixel1)/17, sin8(count[1])/17, cos8(m_initialPixel2)/17, m_initialPixel3);
+//    m_leds[XY(quadwave8(m_ledCount)/17, 4, width, width)] = CHSV (0 , 255, 255); // lines following different wave fonctions
+//    m_leds[XY(cubicwave8(m_ledCount)/17, 6, width, width)] = CHSV (40 , 255, 255);
+//    m_leds[XY(triwave8(m_ledCount)/17, 8, width, width)] = CHSV (80 , 255, 255);
+    
+    // duplicate the seed in the buffer
+    //Caleidoscope4();
+    
+    // add buffer to leds
+//    for(int i = 0; i < m_ledCount ; i++) {
+//        leds[i] += buffer[i];
+//    }
+    
+    // clear buffer
+//    ClearBuffer();
+//    for(int i = 0; i < m_ledCount ; i++) {
+//        m_leds[i] = 0;
+//    }
+    
+    // rotate leds
+    Spiral(7,7,10,120, m_leds, width, height);
+    
+    //DimmAll(230);
+    
+   // FastLED.show();
+    
+    // do not delete the current leds, just fade them down for the tail effect
+    //DimmAll(220);
+}
+
 void LEDPatterns::sinWaveDemoEffect() {
     if (!shouldUpdatePattern()) {
         return;
@@ -1987,6 +2137,7 @@ void LEDPatterns::readDataIntoBufferStartingAtPosition(uint32_t position, uint8_
     // Mark where we are in the file (relative)
     int bufferSize = getBufferSize();
     
+//    ASSERT(m_dataFilename != NULL);
     File f = SD.open(m_dataFilename);
     //    if (!f.available()) {
     //        DEBUG_PRINTLN("  _-----------------------what???");
