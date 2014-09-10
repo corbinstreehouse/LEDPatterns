@@ -89,7 +89,7 @@ void LEDStateInfo::update(CRGB *leds, int ledCount) {
         }
     }
     
-    // was the iteration .... this returns the color to use..
+    // was the iteration
     if (alive()) {
         int objectSize = abs(m_velocity/100);
         if (objectSize == 0) { objectSize = 1; }
@@ -97,9 +97,9 @@ void LEDStateInfo::update(CRGB *leds, int ledCount) {
         int pos = ledPos;
         for (int x = 0; x <= objectSize; x++){
             if (m_velocity > 0) {
-                leds[circMod(pos-x, ledCount)] += m_color % (255-((255/objectSize)*x));
+                leds[circMod(pos-x, ledCount)] += m_color % (uint8_t)(255-((255/objectSize)*x));
             } else {
-                leds[circMod(pos+x, ledCount)] += m_color % (255-((255/objectSize)*x));
+                leds[circMod(pos+x, ledCount)] += m_color % (uint8_t)(255-((255/objectSize)*x));
             }
         }
     }
@@ -109,10 +109,6 @@ void LEDStateInfo::update(CRGB *leds, int ledCount) {
 void LEDStateInfo::setLife(unsigned long life) {
     m_life = life * 1000;
     m_death = m_birth + m_life;
-}
-
-unsigned long LEDStateInfo::age() {
-    return (micros() - m_birth) / 1000000;
 }
 
 bool LEDStateInfo::alive() {
@@ -1844,16 +1840,19 @@ void Spiral(int x,int y, int r, byte dimm, CRGB *leds, int WIDTH, int HEIGHT) {
 #define NUMBER_LIFE_OBJECTS 0.10 // percentage
 
 void blur(int amount, CRGB *leds, CRGB *temp, int count) {
-    for(int b = 0; b < amount; b++) {
+    uint8_t t = 10;
+    for (int b = 0; b < amount; b++) {
         for(int x = 0; x < count; x++) {
-            temp[x] = leds[x] + (leds[(((x-1)%count)+count)%count]%10) + (leds[(x+1)%count]%10);
+            temp[x] = leds[x] + (leds[(((x-1)%count)+count)%count]%t) + (leds[(x+1)%count]%t);
         }
-        memcpy8(leds, temp, sizeof(leds));
+        memcpy8(leds, temp, sizeof(CRGB)*count); // was sizeof(leds), which is ambiguous..sizeof a pointer???
     }
 }
 
 
 void LEDPatterns::lifePattern() {
+    if (!shouldUpdatePattern()) return;
+    
     LEDStateInfo *stateInfo;
     if (m_firstTime) {
         // Initialize...
