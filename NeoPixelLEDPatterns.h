@@ -12,7 +12,7 @@
 #include "LEDPatterns.h"
 #include "Adafruit_NeoPixel.h"
 
-#define STRIP_PIN 2
+#define STRIP_PIN 14
 
 class NeoPixelLEDPatterns : public LEDPatterns {
 private:

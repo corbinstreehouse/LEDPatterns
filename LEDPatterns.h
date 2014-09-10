@@ -71,6 +71,8 @@ typedef enum : int16_t {
     LEDPatternTypeSinWave, 
     LEDPatternTypeFunkyClouds,
     
+    LEDPatternTypeLife,
+    
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
 } LEDPatternType;
@@ -102,6 +104,8 @@ private:
     
     CRGB *m_ledTempBuffer1;
     CRGB *m_ledTempBuffer2;
+    void *m_stateInfo;
+    int m_stateInfoCount;
     
     CRGB m_randColor1; // These could be pointers into the temp buffer
     CRGB m_randColor2;
@@ -165,6 +169,7 @@ private: // Patterns
     void flagEffect();
     void sinWaveDemoEffect();
     void funkyCloudsPattern();
+    void lifePattern();
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();

@@ -26,6 +26,110 @@
 #endif
 
 
+class LEDStateInfo {
+public:
+    LEDStateInfo(int pos, int ledCount, int stateObjectCount);
+    
+    void setLife(unsigned long life); // in seconds
+    void kill();
+    unsigned long age();
+    
+    // color can be set
+    void setColor(CRGB color) { m_color = color; }
+
+    void update(CRGB *leds, int ledCount); // should be called on each iteration
+private:
+	CRGB m_color;
+	int m_acceleration;
+	int m_velocity;
+  	int m_pos;
+	int m_LEDmm; // what is this for??
+	unsigned long m_birth;
+	unsigned long m_life;
+	unsigned long m_death;
+	unsigned long m_lastUpdate;
+    bool alive();
+};
+
+LEDStateInfo::LEDStateInfo(int pos, int ledCount, int stateObjectCount) {
+    m_color = CHSV((255/stateObjectCount)*pos, 255, 255);
+    m_LEDmm = 8; // TODO: what's this for?
+    m_pos = ((m_LEDmm * ledCount) / stateObjectCount) * pos;
+    m_velocity = 2000;
+    m_acceleration = -1;
+    m_lastUpdate = micros();
+    m_birth = m_lastUpdate;
+    m_life = 0;
+    m_death = m_birth + m_life;
+}
+
+int circMod(int x, int m) {
+    return (x%m + m)%m;
+}
+
+void LEDStateInfo::update(CRGB *leds, int ledCount) {
+    if (alive()) {
+        unsigned long now = micros();
+        m_velocity += m_acceleration;
+        m_pos += m_velocity * ((now-m_lastUpdate)/1000000.0);
+        m_lastUpdate = now;
+    }
+
+    // was fireUpObj.
+    // corbin: when does vel change??? it states out non zero..so I don't konw when this would get executed..
+    if (abs(m_velocity) == 0) {
+        randomSeed(micros());
+        m_velocity = random(950, 1000);
+        randomSeed(micros());
+        m_acceleration = random(-1,-2);
+        randomSeed(micros());
+        if (random(2) == 1) {
+            m_velocity *= -1;
+            m_acceleration *= -1;
+        }
+    }
+    
+    // was the iteration .... this returns the color to use..
+    if (alive()) {
+        int objectSize = abs(m_velocity/100);
+        if (objectSize == 0) { objectSize = 1; }
+        int ledPos = m_pos / m_LEDmm;
+        int pos = ledPos;
+        for (int x = 0; x <= objectSize; x++){
+            if (m_velocity > 0) {
+                leds[circMod(pos-x, ledCount)] += m_color % (255-((255/objectSize)*x));
+            } else {
+                leds[circMod(pos+x, ledCount)] += m_color % (255-((255/objectSize)*x));
+            }
+        }
+    }
+}
+
+// in seconds
+void LEDStateInfo::setLife(unsigned long life) {
+    m_life = life * 1000;
+    m_death = m_birth + m_life;
+}
+
+unsigned long LEDStateInfo::age() {
+    return (micros() - m_birth) / 1000000;
+}
+
+bool LEDStateInfo::alive() {
+    unsigned long now = micros();
+    if (now < m_death || m_life == 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void LEDStateInfo::kill() {
+    m_death = micros();
+}
+
+
+
 static inline bool PatternIsContinuous(LEDPatternType p) {
     switch (p) {
         case LEDPatternTypeRotatingRainbow:
@@ -83,6 +187,8 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
             return false;
         case LEDPatternTypeCrossfade:
             return false;
+        case LEDPatternTypeLife:
+            return true;
             
     }
 }
@@ -306,7 +412,11 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             funkyCloudsPattern();
             break;
         }
-            
+        case LEDPatternTypeLife: {
+            lifePattern();
+            break;
+        }
+    
     }
     
     if (m_patternType >= LEDPatternTypeWarmWhiteShimmer && m_patternType <= LEDPatternTypeCollision) {
@@ -1729,6 +1839,55 @@ void Spiral(int x,int y, int r, byte dimm, CRGB *leds, int WIDTH, int HEIGHT) {
             leds[XY(x-d,i, WIDTH, HEIGHT)] += leds[XY(x-d,i-1, WIDTH, HEIGHT)];   // left colum down
             leds[XY(x-d,i, WIDTH, HEIGHT)].nscale8( dimm );}
     }
+}
+
+#define NUMBER_LIFE_OBJECTS 0.10 // percentage
+
+void blur(int amount, CRGB *leds, CRGB *temp, int count) {
+    for(int b = 0; b < amount; b++) {
+        for(int x = 0; x < count; x++) {
+            temp[x] = leds[x] + (leds[(((x-1)%count)+count)%count]%10) + (leds[(x+1)%count]%10);
+        }
+        memcpy8(leds, temp, sizeof(leds));
+    }
+}
+
+
+void LEDPatterns::lifePattern() {
+    LEDStateInfo *stateInfo;
+    if (m_firstTime) {
+        // Initialize...
+        // First, free any used memory so we can malloc our large array
+        if (m_ledTempBuffer2) {
+            free(m_ledTempBuffer2);
+            m_ledTempBuffer2 = NULL;
+        }
+        // TODO: free this array when used!!
+        if (m_stateInfo == NULL) {
+            // 10% of the led count...
+            m_stateInfoCount = ceil(NUMBER_LIFE_OBJECTS * m_ledCount);
+            m_stateInfo = malloc(m_stateInfoCount * sizeof(LEDStateInfo));
+            
+        }
+        
+        stateInfo = (LEDStateInfo *)m_stateInfo;
+        for (int i = 0; i < m_stateInfoCount; i++) {
+            stateInfo[i] = LEDStateInfo(i, m_ledCount, m_stateInfoCount); // initialize it
+        }
+        
+    } else {
+        stateInfo = (LEDStateInfo *)m_stateInfo;
+    }
+    
+    // Intialize all contents to black
+    fill_solid(m_leds, m_ledCount, CRGB::Black);
+
+    for (int i = 0; i < m_stateInfoCount; i++) {
+        stateInfo[i].update(m_leds, m_ledCount);
+    }
+
+    //apply a blur to the LED array //3x = 220us, 16x = 1200us
+    blur(3, m_leds, getTempBuffer1(), m_ledCount);
 }
 
 void LEDPatterns::funkyCloudsPattern() {
