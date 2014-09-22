@@ -201,7 +201,7 @@ void LEDPatterns::setPatternType(LEDPatternType type) {
 }
 
 void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
-    
+//    DEBUG_PRINTF("updateLEDsForPatternType: %d\n", patternType);
     // for polulu
     unsigned int maxLoops = 0;  // go to next state when m_ledCount >= maxLoops
     // Only update based on the real type...

@@ -12,7 +12,9 @@
 #include "LEDPatterns.h"
 #include "FastLED.h"
 
-#define STRIP_PIN 2
+#ifndef STRIP_PIN
+    #define STRIP_PIN 2
+#endif
 
 class FastLEDPatterns : public LEDPatterns {
 protected:

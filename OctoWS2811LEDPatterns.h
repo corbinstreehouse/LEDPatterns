@@ -12,7 +12,9 @@
 #include "LEDPatterns.h"
 //#include "OctoWS2811.h" // For f's sake, we can't include this because it doesn't have a header guard! The client has to include it first..how sad.
 
-#define STRIP_PIN 2
+#ifndef STRIP_PIN
+    #define STRIP_PIN 2
+#endif
 
 class OctoWS2811WithMemory : public OctoWS2811 {
 public:
