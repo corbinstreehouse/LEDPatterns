@@ -2122,7 +2122,8 @@ void LEDPatterns::theaterChase() {
     int swipePosition = round(getPercentagePassed()*6);
     
     for (int i = 0; i < m_ledCount; i++) {
-        if ((swipePosition + i) % 3 == 0) {
+        // TODO: add options for spacing.
+        if ((swipePosition + i) % 5 == 0) {
             setPixelColor(i, m_patternColor);
         } else {
             setPixelColor(i, CRGB::Black);
