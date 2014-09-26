@@ -9,6 +9,7 @@
 #include "LEDPatterns.h"
 #include "colorutils.h"
 #include "hsv2rgb.h"
+#include "colorpalettes.h"
 #if SD_CARD_SUPPORT
     #include "SD.h"
 #endif
@@ -28,7 +29,8 @@
 
 class LEDStateInfo {
 public:
-    LEDStateInfo(int pos, int ledCount, int stateObjectCount);
+    LEDStateInfo(int pos, int ledCount, int stateObjectCount, int velocity);
+    void initForBounce(int pos, int stateObjectCount); // for bounce
     
     void setLife(unsigned long life); // in seconds
     void kill();
@@ -38,6 +40,7 @@ public:
     void setColor(CRGB color) { m_color = color; }
 
     void update(CRGB *leds, int ledCount); // should be called on each iteration
+    void updateBounceColor(CRGB *leds, int ledCount);
 private:
 	CRGB m_color;
 	int m_acceleration;
@@ -47,20 +50,52 @@ private:
 	unsigned long m_birth;
 	unsigned long m_life;
 	unsigned long m_death;
+    
 	unsigned long m_lastUpdate;
+    float m_impact;
+    float m_cycle;
+    float m_cors;
+    float m_height;
     bool alive();
 };
 
-LEDStateInfo::LEDStateInfo(int pos, int ledCount, int stateObjectCount) {
+
+LEDStateInfo::LEDStateInfo(int pos, int ledCount, int stateObjectCount, int velocity) {
     m_color = CHSV((255/stateObjectCount)*pos, 255, 255);
     m_LEDmm = 8; // TODO: what's this for?
     m_pos = ((m_LEDmm * ledCount) / stateObjectCount) * pos;
-    m_velocity = 2000;
+    m_velocity = velocity;
     m_acceleration = -1;
     m_lastUpdate = micros();
     m_birth = m_lastUpdate;
     m_life = 0;
     m_death = m_birth + m_life;
+
+    if (velocity == 0) {
+        randomSeed(micros());
+        m_velocity = random(950, 1000);
+        randomSeed(micros());
+        m_acceleration = random(-1,-2);
+        randomSeed(micros());
+        if (random(2) == 1) {
+            m_velocity *= -1;
+            m_acceleration *= -1;
+        }
+    }
+}
+
+#define GRAVITY           -9.81              // Downward (negative) acceleration of gravity in m/s^2
+#define BOUNCE_HEIGHT                5                  // Starting height, in meters, of the ball (strip length)
+const float vImpact0 = sqrt( -2 * GRAVITY * BOUNCE_HEIGHT );  // Impact velocity of the ball when it hits the ground if "dropped" from the top of the strip
+
+void LEDStateInfo::initForBounce(int pos, int stateObjectCount) {
+    m_lastUpdate = millis();
+    m_height = BOUNCE_HEIGHT;
+    m_pos = 0;                              // Balls start on the ground
+    m_impact = vImpact0;             // And "pop" up at vImpact0
+    m_cors = 0.90 - float(pos)/pow(stateObjectCount,2);
+    m_impact = m_cors * m_impact ;   // and recalculate its new upward velocity as it's old velocity * COR
+    m_cycle = 0;
 }
 
 int circMod(int x, int m) {
@@ -76,7 +111,7 @@ void LEDStateInfo::update(CRGB *leds, int ledCount) {
     }
 
     // was fireUpObj.
-    // corbin: when does vel change??? it states out non zero..so I don't konw when this would get executed..
+    // corbin: when does vel change to 0??? it starts out non zero..so I don't know when this would get executed..
     if (abs(m_velocity) == 0) {
         randomSeed(micros());
         m_velocity = random(950, 1000);
@@ -105,6 +140,23 @@ void LEDStateInfo::update(CRGB *leds, int ledCount) {
     }
 }
 
+void LEDStateInfo::updateBounceColor(CRGB *leds, int ledCount) {
+    m_cycle =  millis() - m_lastUpdate ;     // Calculate the time since the last time the ball was on the ground
+    
+    // A little kinematics equation calculates positon as a function of time, acceleration (gravity) and intial velocity
+    m_height = 0.5 * GRAVITY * pow( m_cycle/1000 , 2.0 ) + m_impact * m_cycle/1000;
+    
+    if ( m_height < 0 ) {
+        m_height = 0;                            // If the ball crossed the threshold of the "ground," put it back on the ground
+        m_impact = m_cors * m_impact ;   // and recalculate its new upward velocity as it's old velocity * COR
+        m_lastUpdate = millis();
+        
+        if ( m_impact < 0.01 ) m_impact = vImpact0;  // If the ball is barely moving, "pop" it back up at vImpact0
+    }
+    m_pos = round( m_height * (ledCount - 1) / BOUNCE_HEIGHT);
+    leds[m_pos] = m_color;
+}
+
 // in seconds
 void LEDStateInfo::setLife(unsigned long life) {
     m_life = life * 1000;
@@ -125,11 +177,10 @@ void LEDStateInfo::kill() {
 }
 
 
-
-static inline bool PatternIsContinuous(LEDPatternType p) {
+static inline bool _PatternIsContinuous(LEDPatternType p) {
     switch (p) {
-        case LEDPatternTypeRotatingRainbow:
         case LEDPatternTypeRotatingMiniRainbows:
+        case LEDPatternTypeRotatingRainbow:
         case LEDPatternTypeTheaterChase:
         case LEDPatternTypeGradient:
         case LEDPatternTypePluseGradientEffect:
@@ -175,6 +226,8 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
             return false;
         case LEDPatternTypeFire:
         case LEDPatternTypeBlueFire:
+        case LEDPatternTypeLavaFire:
+        case LEDPatternTypeRainbowFire:
         case LEDPatternFlagEffect:
         case LEDPatternTypeFunkyClouds:
             return true;
@@ -184,6 +237,8 @@ static inline bool PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeCrossfade:
             return false;
         case LEDPatternTypeLife:
+        case LEDPatternTypeLifeDynamic:
+        case LEDPatternTypeBouncingBall:
             return true;
             
     }
@@ -387,6 +442,15 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             blueFirePattern();
             break;
         }
+        case LEDPatternTypeLavaFire: {
+            fireColorWithPalette(LavaColors_p, 10, 220);
+            break;
+        }
+        case LEDPatternTypeRainbowFire: {
+            fireColorWithPalette(PartyColors_p, 40, 220);
+            break;
+        }
+            
         case LEDPatternTypeAllOff: {
 #if DEBUG
             //showOn();
@@ -409,7 +473,15 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             break;
         }
         case LEDPatternTypeLife: {
-            lifePattern();
+            lifePattern(false);
+            break;
+        }
+        case LEDPatternTypeLifeDynamic: {
+            lifePattern(true);
+            break;
+        }
+        case LEDPatternTypeBouncingBall: {
+            bouncingBallPattern();
             break;
         }
     
@@ -443,6 +515,62 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
 
 }
 
+bool LEDPatterns::PatternIsContinuous(LEDPatternType p) {
+    return _PatternIsContinuous(p);
+}
+
+bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
+    switch (p) {
+        case LEDPatternTypeRotatingMiniRainbows:
+        case LEDPatternTypeRotatingRainbow:
+        case LEDPatternTypeTheaterChase:
+        case LEDPatternTypeGradient:
+        case LEDPatternTypePluseGradientEffect:
+        case LEDPatternTypeSolidRainbow:
+        case LEDPatternTypeRainbowWithSpaces:
+        case LEDPatternTypeFadeOut:
+        case LEDPatternTypeFadeIn:
+        case LEDPatternTypeRandomGradients:
+        case LEDPatternTypeColorWipe:
+        case LEDPatternTypeWave:
+        case LEDPatternTypeRotatingBottomGlow:
+#if SD_CARD_SUPPORT
+        case LEDPatternTypeImageLinearFade:
+        case LEDPatternTypeImageEntireStrip:
+#endif
+        case LEDPatternTypeSinWave:
+        case LEDPatternTypeCrossfade:
+            return true;
+        case LEDPatternTypeWarmWhiteShimmer:
+        case LEDPatternTypeRandomColorWalk:
+        case LEDPatternTypeTraditionalColors:
+        case LEDPatternTypeColorExplosion:
+        case LEDPatternTypeRWGradient:
+        case LEDPatternTypeWhiteBrightTwinkle:
+        case LEDPatternTypeWhiteRedBrightTwinkle:
+        case LEDPatternTypeRedGreenBrightTwinkle:
+        case LEDPatternTypeColorTwinkle:
+        case LEDPatternTypeCollision:
+        case LEDPatternTypeDoNothing:
+        case LEDPatternTypeBottomGlow:
+        case LEDPatternTypeBlink:
+        case LEDPatternTypeSolidColor:
+        case LEDPatternTypeFire:
+        case LEDPatternTypeBlueFire:
+        case LEDPatternTypeLavaFire:
+        case LEDPatternTypeRainbowFire:
+        case LEDPatternFlagEffect:
+        case LEDPatternTypeLife:
+        case LEDPatternTypeLifeDynamic:
+        case LEDPatternTypeBouncingBall:
+        case LEDPatternTypeFunkyClouds:
+            return false;
+        default:
+            return false;
+    }
+}
+
+
 void LEDPatterns::show() {
     uint32_t now = millis();
     // The inital tick always starts with 0
@@ -450,7 +578,7 @@ void LEDPatterns::show() {
 
     m_intervalCount = m_timePassed / m_duration;
     
-    if (!PatternIsContinuous(m_patternType)) {
+    if (!_PatternIsContinuous(m_patternType)) {
         // Since it isn't continuous, modify the timePassed here
         if (m_intervalCount > 0) {
             m_timePassed = m_timePassed - m_intervalCount*m_duration;
@@ -1464,42 +1592,42 @@ void LEDPatterns::blinkPattern() {
 }
 
 
-static CRGB HeatColorBlue( uint8_t temperature)
-{
-    CRGB heatcolor;
-    
-    // Scale 'heat' down from 0-255 to 0-191,
-    // which can then be easily divided into three
-    // equal 'thirds' of 64 units each.
-    uint8_t t192 = scale8_video( temperature, 192);
-    
-    // calculate a value that ramps up from
-    // zero to 255 in each 'third' of the scale.
-    uint8_t heatramp = t192 & 0x3F; // 0..63
-    heatramp <<= 2; // scale up to 0..252
-    
-    // now figure out which third of the spectrum we're in:
-    if( t192 & 0x80) {
-        // we're in the hottest third
-        heatcolor.r = heatramp; // full red
-        heatcolor.g = 255; // full green
-        heatcolor.b = 255; // ramp up blue
-        
-    } else if( t192 & 0x40 ) {
-        // we're in the middle third
-        heatcolor.r = 0; // full red
-        heatcolor.g = heatramp; // ramp up green
-        heatcolor.b = 255; // no blue
-        
-    } else {
-        // we're in the coolest third
-        heatcolor.r = 0; //
-        heatcolor.g = 0; //
-        heatcolor.b = heatramp; //
-    }
-    
-    return heatcolor;
-}
+//static CRGB HeatColorBlue( uint8_t temperature)
+//{
+//    CRGB heatcolor;
+//    
+//    // Scale 'heat' down from 0-255 to 0-191,
+//    // which can then be easily divided into three
+//    // equal 'thirds' of 64 units each.
+//    uint8_t t192 = scale8_video( temperature, 192);
+//    
+//    // calculate a value that ramps up from
+//    // zero to 255 in each 'third' of the scale.
+//    uint8_t heatramp = t192 & 0x3F; // 0..63
+//    heatramp <<= 2; // scale up to 0..252
+//    
+//    // now figure out which third of the spectrum we're in:
+//    if( t192 & 0x80) {
+//        // we're in the hottest third
+//        heatcolor.r = heatramp; // full red
+//        heatcolor.g = 255; // full green
+//        heatcolor.b = 255; // ramp up blue
+//        
+//    } else if( t192 & 0x40 ) {
+//        // we're in the middle third
+//        heatcolor.r = 0; // full red
+//        heatcolor.g = heatramp; // ramp up green
+//        heatcolor.b = 255; // no blue
+//        
+//    } else {
+//        // we're in the coolest third
+//        heatcolor.r = 0; //
+//        heatcolor.g = 0; //
+//        heatcolor.b = heatramp; //
+//    }
+//    
+//    return heatcolor;
+//}
 
 // For 60-hrz based patterns
 bool LEDPatterns::shouldUpdatePattern() {
@@ -1521,17 +1649,80 @@ bool LEDPatterns::shouldUpdatePattern() {
 
 }
 
-void LEDPatterns::firePatternWithColor(bool blue) {
-    // COOLING: How much does the air cool as it rises?
-    // Less cooling = taller flames.  More cooling = shorter flames.
-    // Default 50, suggested range 20-100
+// COOLING: How much does the air cool as it rises?
+// Less cooling = taller flames.  More cooling = shorter flames.
+// Default 50, suggested range 20-100
 #define COOLING  80
-    
-    // SPARKING: What chance (out of 255) is there that a new spark will be lit?
-    // Higher chance = more roaring fire.  Lower chance = more flickery fire.
-    // Default 120, suggested range 50-200.
+
+// SPARKING: What chance (out of 255) is there that a new spark will be lit?
+// Higher chance = more roaring fire.  Lower chance = more flickery fire.
+// Default 120, suggested range 50-200.
 #define SPARKING 130
 
+void LEDPatterns::fireColorWithPalette(const CRGBPalette16& pal, int cooling, int sparking) {
+    if (!shouldUpdatePattern()) {
+        return;
+    }
+    // Array of temperature readings at each simulation cell
+    byte *heat = (byte *)getTempBuffer1();
+    byte *heat2 = (byte *)getTempBuffer2();
+    
+    if (m_firstTime) {
+        for (int i = 0; i < m_ledCount; i++) {
+            heat[i] = 0; // random8(255);
+            heat2[i] = 0;
+        }
+    }
+    
+    int count = m_ledCount / 2;
+    int secondHalfCount = m_ledCount - count;
+    if (secondHalfCount > count) {
+        count = secondHalfCount;
+    }
+    
+    // Step 1.  Cool down every cell a little
+    for( int i = 0; i < count; i++) {
+        heat[i] = qsub8( heat[i],  random(0, ((cooling * 10) / count) + 2));
+        heat2[i] = qsub8( heat2[i],  random(0, ((cooling * 10) / count) + 2));
+    }
+    
+    // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+    for( int k= count - 3; k > 0; k--) {
+        heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+        heat2[k] = (heat2[k - 1] + heat2[k - 2] + heat2[k - 2] ) / 3;
+    }
+    
+    // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
+    if( random(255) < sparking ) {
+        int y = random(7);
+        heat[y] = qadd8( heat[y], random(160,255) );
+        y = random(7);
+        heat2[y] = qadd8( heat2[y], random(160,255) );
+    }
+    
+    // Step 4.  Map from heat cells to LED colors
+    int k = m_ledCount - 1;
+    for( int j = 0; j < count; j++) {
+        byte colorindex = scale8( heat[j], 240);
+        m_leds[j] = ColorFromPalette(pal, colorindex);
+        
+        byte colorindex2 = scale8( heat2[j], 240);
+        m_leds[k] = ColorFromPalette(pal, colorindex2);
+        k--;
+    }
+}
+
+void LEDPatterns::firePatternWithColor(bool blue) {
+
+    if (blue) {
+        static const CRGBPalette16 bluePal = CRGBPalette16( CRGB::Black, CRGB::Blue, CRGB::Aqua,  CRGB::White);
+        fireColorWithPalette(bluePal, COOLING, SPARKING);
+    } else {
+        fireColorWithPalette(HeatColors_p, COOLING, SPARKING);
+    }
+    
+    return; // corbin
+/*
     if (!shouldUpdatePattern()) {
         return;
     }
@@ -1584,6 +1775,7 @@ void LEDPatterns::firePatternWithColor(bool blue) {
         }
         k--;
     }
+ */
 }
 
 void LEDPatterns::firePattern() {
@@ -1838,6 +2030,7 @@ void Spiral(int x,int y, int r, byte dimm, CRGB *leds, int WIDTH, int HEIGHT) {
 }
 
 #define NUMBER_LIFE_OBJECTS 0.10 // percentage
+#define NUMBER_BOUNCE_OBJECTS 10
 
 void blur(int amount, CRGB *leds, CRGB *temp, int count) {
     uint8_t t = 10;
@@ -1849,34 +2042,62 @@ void blur(int amount, CRGB *leds, CRGB *temp, int count) {
     }
 }
 
+void LEDPatterns::commonInitForPattern() {
+    // Initialize...
+    // First, free any used memory so we can malloc our large array
+    if (m_ledTempBuffer2) {
+        free(m_ledTempBuffer2);
+        m_ledTempBuffer2 = NULL;
+    }
+    
+    if (m_stateInfo != NULL) {
+        free(m_stateInfo);
+    }
+    
+    // 10% of the led count...
+    if (m_patternType == LEDPatternTypeBouncingBall) {
+        m_stateInfoCount = NUMBER_BOUNCE_OBJECTS; //ceil(NUMBER_BOUNCE_OBJECTS * m_ledCount);
+    } else {
+        m_stateInfoCount = ceil(NUMBER_LIFE_OBJECTS * m_ledCount);
+    }
+    m_stateInfo = malloc(m_stateInfoCount * sizeof(LEDStateInfo));
+    
+    LEDStateInfo *stateInfo = (LEDStateInfo *)m_stateInfo;
+    int velocity = m_patternType == LEDPatternTypeLifeDynamic ? 0 : 2000;
+    // Go to the dynamic portion....
+    for (int i = 0; i < m_stateInfoCount; i++) {
+        stateInfo[i] = LEDStateInfo(i, m_ledCount, m_stateInfoCount, velocity); // initialize it
+        if (m_patternType == LEDPatternTypeBouncingBall) {
+            stateInfo[i].initForBounce(i, m_stateInfoCount);
+        }
+    }
+}
 
-void LEDPatterns::lifePattern() {
+void LEDPatterns::bouncingBallPattern() {
+    if (!shouldUpdatePattern()) return;
+
+    if (m_firstTime) {
+        commonInitForPattern();
+    }
+    LEDStateInfo *stateInfo = (LEDStateInfo *)m_stateInfo;
+
+    // Intialize all contents to black
+    fill_solid(m_leds, m_ledCount, CRGB::Black);
+    
+    for (int i = 0; i < m_stateInfoCount; i++) {
+        stateInfo[i].updateBounceColor(m_leds, m_ledCount);
+    }
+    blur(4, m_leds, getTempBuffer1(), m_ledCount);
+
+}
+
+void LEDPatterns::lifePattern(bool dynamic) {
     if (!shouldUpdatePattern()) return;
     
-    LEDStateInfo *stateInfo;
     if (m_firstTime) {
-        // Initialize...
-        // First, free any used memory so we can malloc our large array
-        if (m_ledTempBuffer2) {
-            free(m_ledTempBuffer2);
-            m_ledTempBuffer2 = NULL;
-        }
-        // TODO: free this array when used!!
-        if (m_stateInfo == NULL) {
-            // 10% of the led count...
-            m_stateInfoCount = ceil(NUMBER_LIFE_OBJECTS * m_ledCount);
-            m_stateInfo = malloc(m_stateInfoCount * sizeof(LEDStateInfo));
-            
-        }
-        
-        stateInfo = (LEDStateInfo *)m_stateInfo;
-        for (int i = 0; i < m_stateInfoCount; i++) {
-            stateInfo[i] = LEDStateInfo(i, m_ledCount, m_stateInfoCount); // initialize it
-        }
-        
-    } else {
-        stateInfo = (LEDStateInfo *)m_stateInfo;
+        commonInitForPattern();
     }
+    LEDStateInfo *stateInfo = (LEDStateInfo *)m_stateInfo;
     
     // Intialize all contents to black
     fill_solid(m_leds, m_ledCount, CRGB::Black);
@@ -1888,6 +2109,7 @@ void LEDPatterns::lifePattern() {
     //apply a blur to the LED array //3x = 220us, 16x = 1200us
     blur(3, m_leds, getTempBuffer1(), m_ledCount);
 }
+
 
 void LEDPatterns::funkyCloudsPattern() {
     if (!shouldUpdatePattern()) {

@@ -11,6 +11,7 @@
 
 #include "Arduino.h"
 #include "pixeltypes.h"
+#include "colorutils.h"
 
 // Turn this off if you don't have an SD card
 #define SD_CARD_SUPPORT 1
@@ -72,6 +73,11 @@ typedef enum : int16_t {
     LEDPatternTypeFunkyClouds,
     
     LEDPatternTypeLife,
+    LEDPatternTypeLifeDynamic,
+    
+    LEDPatternTypeBouncingBall,
+    LEDPatternTypeRainbowFire,
+    LEDPatternTypeLavaFire,
     
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
@@ -90,7 +96,6 @@ private:
     uint32_t m_timePassed;
     int m_intervalCount;
     int m_lastIntervalCount;
-    
     
     uint32_t m_timedPattern;
     // Stuff that applies to only certain patterns
@@ -165,15 +170,20 @@ private: // Patterns
     void blinkPattern();
     void firePattern();
     void blueFirePattern();
+    
     void firePatternWithColor(bool blue);
+    
+    void fireColorWithPalette(const CRGBPalette16& pal, int cooling, int sparking);
     void flagEffect();
     void sinWaveDemoEffect();
     void funkyCloudsPattern();
-    void lifePattern();
+    
+    void commonInitForPattern();
+    void lifePattern(bool dynamic);
+    void bouncingBallPattern();
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();
-
     
     void updateLEDsForPatternType(LEDPatternType patternType);
     
@@ -214,8 +224,13 @@ public:
             free(m_ledTempBuffer2);
         }
     }
+    
+    // a given pattern does NOT need a duration set if it is continuous
+    static bool PatternIsContinuous(LEDPatternType p);
+    static bool PatternNeedsDuration(LEDPatternType p);
 
-    // Call begin before doing anyting
+
+    // Call begin before doing anything
     virtual void begin() = 0;
     
     // Primary way to change patterns by calling setPatternType; this re-intializes things
@@ -225,14 +240,11 @@ public:
     void setNextPatternType(LEDPatternType nextType) { m_nextPatternType = nextType; } // Only needed for crossfade pattern
     
     // A pattern's speed is based on its duration. Some patterns ignore this, and others adhere to it. After each duration "tick" happens, the interval count is increased.
-    inline void setDuration(uint32_t duration) { m_duration = duration; } // in ms; must be > 0
+    inline void setPatternDuration(uint32_t duration) { m_duration = duration; } // in ms; must be > 0
+    
     // Some patterns are based off a primary color
     inline void setPatternColor(CRGB color) { m_patternColor = color; };
 
-    
-    // The number of intervals that have passed. 0 based counting (0 is the first, and after a call to show() it will be 1)
-    inline int getIntervalCount() { return m_intervalCount; };
-    
 #if SD_CARD_SUPPORT
     // For LEDPatternTypeImage, you MUST set the data info. A file can have the image data anywhere inside of it, and dataOffset indicates the offset starting into the file.
     inline void setDataInfo(const char *filename, uint32_t dataLength, uint32_t dataOffset = 0) {
