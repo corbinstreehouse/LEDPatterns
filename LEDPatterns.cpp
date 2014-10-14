@@ -11,6 +11,7 @@
 #include "hsv2rgb.h"
 #include "colorpalettes.h"
 #if SD_CARD_SUPPORT
+    #include "SPI.h"
     #include "SD.h"
 #endif
 
@@ -25,7 +26,6 @@
 #ifndef byte
 #define byte uint8_t
 #endif
-
 
 class LEDStateInfo {
 public:
