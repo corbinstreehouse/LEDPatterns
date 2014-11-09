@@ -10,6 +10,7 @@
 #include "colorutils.h"
 #include "hsv2rgb.h"
 #include "colorpalettes.h"
+
 #if SD_CARD_SUPPORT
     #include "SPI.h"
     #include "SD.h"
@@ -2777,3 +2778,19 @@ void LEDPatterns::flashOnce(CRGB color) {
     internalShow();
     delay(250);
 }
+
+void LEDPatterns::showProgress(float progress, CRGB color) {
+    fill_solid(m_leds, m_ledCount, CRGB::Black);
+    int max = round(progress * m_ledCount); // can be > 1.0
+    if (max > m_ledCount) {
+        max = max % m_ledCount;
+    }
+    
+    for (int i = 0; i < max; i++) {
+        setPixelColor(i, color);
+    }
+    internalShow();
+}
+
+
+
