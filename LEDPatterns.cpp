@@ -2762,7 +2762,7 @@ void LEDPatterns::linearImageFade() {
 
 #endif  // SD_CARD_SUPPORT
 
-void LEDPatterns::flashThreeTimesWithDelay(CRGB color, uint32_t delayAmount) {
+void LEDPatterns::flashThreeTimes(CRGB color, uint32_t delayAmount) {
     for (int i = 0; i < 3; i++) {
         fill_solid(m_leds, m_ledCount, color);
         internalShow();

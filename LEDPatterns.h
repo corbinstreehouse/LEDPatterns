@@ -260,7 +260,7 @@ public:
     void show();
     
     // The next methods are useful for showing state; they flash using "delay" and return after the flash has completed.
-    void flashThreeTimesWithDelay(CRGB color, uint32_t delay);
+    void flashThreeTimes(CRGB color, uint32_t delay = 150);
     void flashOnce(CRGB color);
     
     void showProgress(float progress, CRGB color);
