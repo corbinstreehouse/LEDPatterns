@@ -240,6 +240,7 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeLife:
         case LEDPatternTypeLifeDynamic:
         case LEDPatternTypeBouncingBall:
+        case LEDPatternTypeBitmap:
             return true;
             
     }
@@ -254,7 +255,9 @@ void LEDPatterns::setPatternType(LEDPatternType type) {
     m_lastIntervalCount = 0;
     m_loopCount = 0;
     m_count = 0;
+
 }
+
 
 void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
 //    DEBUG_PRINTF("updateLEDsForPatternType: %d\n", patternType);
@@ -485,6 +488,10 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             bouncingBallPattern();
             break;
         }
+        case LEDPatternTypeBitmap: {
+            bitmapPattern();
+            break;
+        }
     
     }
     
@@ -573,8 +580,14 @@ bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
 
 
 void LEDPatterns::show() {
+    if (m_pauseTime != 0) {
+        return;
+    }
     uint32_t now = millis();
     // The inital tick always starts with 0
+    if (m_startTime > now) {
+        m_startTime = now; // roll over..
+    }
     m_timePassed = m_firstTime ? 0 : now - m_startTime;
 
     m_intervalCount = m_timePassed / m_duration;
@@ -595,6 +608,37 @@ void LEDPatterns::show() {
     internalShow();
     // no longer the first time
     m_firstTime = false;
+}
+
+bool LEDPatterns::isPaused() {
+    return m_pauseTime != 0;
+}
+
+void LEDPatterns::play() {
+    if (m_pauseTime != 0) {
+        // increase the start time by the time that has passed
+        uint32_t now = millis();
+        if (m_firstTime) {
+            m_startTime = now;
+        } else if (now > m_pauseTime) {
+            uint32_t timePassed = now - m_pauseTime;
+            m_startTime += timePassed;
+            // handle the case of the pattern being reset.
+            if (m_startTime > now) {
+                m_startTime = now;
+            }
+        } else {
+            // wrap; reset...
+            m_firstTime = true;
+        }
+        m_pauseTime = 0;
+    }
+}
+
+void LEDPatterns::pause() {
+    if (m_pauseTime == 0) {
+        m_pauseTime = millis(); // record when we paused so we can restart from that point
+    }
 }
 
 // pololu... https://github.com/pololu/pololu-led-strip-arduino/blob/master/PololuLedStrip/examples/LedStripXmas/LedStripXmas.ino
@@ -2089,6 +2133,41 @@ void LEDPatterns::bouncingBallPattern() {
         stateInfo[i].updateBounceColor(m_leds, m_ledCount);
     }
     blur(4, m_leds, getTempBuffer1(), m_ledCount);
+}
+
+void LEDPatterns::bitmapPattern() {
+    assert(m_lazyBitmap != NULL);
+    // A chasing pattern..
+    if (!m_firstTime) {
+        if (m_timePassed >= m_duration) {
+            m_lazyBitmap->xOffset++;
+            m_firstTime = true; // resets the tick on the next pass
+        }
+    }
+    
+    // Keep the offset in bounds
+    uint32_t imageWidth = m_lazyBitmap->getWidth();
+    if (m_lazyBitmap->xOffset >= imageWidth) {
+        m_lazyBitmap->xOffset = 0;
+    }
+    
+    int imageOffset = m_lazyBitmap->xOffset;
+    const CRGB *imageLineData = m_lazyBitmap->getLineDataAtY(0); // TODO: multiple line support..
+    
+    // Pixel 0 is at this offset...loop through and update the leds
+    int x = 0;
+    while (x < m_ledCount) {
+        int maxToCopy = m_ledCount - x;
+        int availableToCopy = imageWidth - imageOffset;
+        int amountToCopy = MIN(maxToCopy, availableToCopy);
+        memcpy(&m_leds[x], &imageLineData[imageOffset], amountToCopy*sizeof(CRGB));
+        x += amountToCopy;
+        imageOffset += amountToCopy;
+        if (imageOffset >= imageWidth) {
+            imageOffset = 0;
+        }
+    }
+    assert(x == m_ledCount);
 
 }
 
@@ -2688,7 +2767,9 @@ void LEDPatterns::patternImageEntireStrip() {
 #if 0 // DEBUG
         Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n", x, r, g, b);
 #endif
+        // dude, this just re-packs it...
         setPixelColor(x, CRGB(r, g, b));
+        
         // Again..assumes 3 bytes per pixel
         currentOffset += 3;
         nextOffsetForBlending += 3;

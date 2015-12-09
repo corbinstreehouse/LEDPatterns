@@ -12,6 +12,7 @@
 #include "Arduino.h"
 #include "pixeltypes.h"
 #include "colorutils.h"
+#include "CDLazyBitmap.h"
 
 // Turn this off if you don't have an SD card
 #define SD_CARD_SUPPORT 1
@@ -79,9 +80,21 @@ typedef enum : int16_t {
     LEDPatternTypeRainbowFire,
     LEDPatternTypeLavaFire,
     
+#if SD_CARD_SUPPORT
+    LEDPatternTypeBitmap,
+#endif
+    
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
 } LEDPatternType;
+
+
+class CDPatternLazyBitmap: public CDLazyBitmap {
+public:
+    int xOffset;
+    // TODO: move into it's own header?
+    CDPatternLazyBitmap(const char *filename) : CDLazyBitmap(filename) {   }
+};
 
 
 class LEDPatterns {
@@ -122,11 +135,17 @@ private:
     unsigned int m_state;
     unsigned int m_count;
     
+    uint32_t m_pauseTime; // When non-0, we are paused
+    
+    
 #if SD_CARD_SUPPORT
+    // lazy bitmaps will replace my file format and file reading (soon!)
+    CDPatternLazyBitmap *m_lazyBitmap;
+    
     uint32_t m_dataOffsetReadIntoBuffer1;
     uint32_t m_dataOffsetReadIntoBuffer2;
     
-    const char *m_dataFilename; // a reference! not copied
+    char *m_dataFilename; // copied
     uint32_t m_dataLength;
     uint32_t m_dataOffset;
     
@@ -181,6 +200,7 @@ private: // Patterns
     void commonInitForPattern();
     void lifePattern(bool dynamic);
     void bouncingBallPattern();
+    void bitmapPattern();
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();
@@ -201,6 +221,8 @@ private: // Patterns
     void pololuGradient();
     void brightTwinkle(unsigned char minColor, unsigned char numColors, unsigned char noNewBursts);
     unsigned char collision();
+    
+    
 protected:
     CRGB *m_leds;
     inline void setPixelColor(int pixel, CRGB color) { m_leds[pixel] = color; };
@@ -208,7 +230,7 @@ protected:
     inline uint32_t getLEDCount() { return m_ledCount; };
 public:
     
-    LEDPatterns(uint32_t ledCount) : m_ledCount(ledCount), m_duration(1000) {
+    LEDPatterns(uint32_t ledCount) : m_ledCount(ledCount), m_duration(1000), m_pauseTime(0), m_dataFilename(0) {
         int byteCount = sizeof(CRGB) * ledCount;
         m_leds = (CRGB *)malloc(byteCount);
         bzero(m_leds, byteCount);
@@ -247,9 +269,34 @@ public:
 
 #if SD_CARD_SUPPORT
     // For LEDPatternTypeImage, you MUST set the data info. A file can have the image data anywhere inside of it, and dataOffset indicates the offset starting into the file.
-    inline void setDataInfo(const char *filename, uint32_t dataLength, uint32_t dataOffset = 0) {
-        m_dataFilename = filename; m_dataLength = dataLength; m_dataOffset = dataOffset;
+    inline void setDataInfo(char *copiedFilename, uint32_t dataLength, uint32_t dataOffset = 0) {
+        if (m_dataFilename) {
+            free(m_dataFilename);
+        }
+        m_dataFilename = copiedFilename;
+        m_dataLength = dataLength;
+        m_dataOffset = dataOffset;
     };
+    // for LEDPatternTypeBitmap you must set the bitmap filename. Calling this method loads the bitmap right at that moment.
+    inline void setBitmapFilename(const char *filename) {
+        if (m_lazyBitmap) {
+            if (m_lazyBitmap->getFilename() && filename && strcmp(m_lazyBitmap->getFilename(), filename) == 0) {
+                // Same bitmap... don't do anything; we reset the position
+            } else {
+                delete m_lazyBitmap;
+                m_lazyBitmap = NULL;
+            }
+        }
+        if (filename != NULL) {
+            if (m_lazyBitmap == NULL) {
+                 m_lazyBitmap = new CDPatternLazyBitmap(filename);
+            }
+            m_lazyBitmap->xOffset = 0;
+        }
+    }
+    
+    inline CDLazyBitmap *getBitmap() { return m_lazyBitmap; }
+    
 #endif
     
     // Abstract control over the overall LED options. Not all subclasses support all options.
@@ -264,6 +311,11 @@ public:
     void flashOnce(CRGB color);
     
     void showProgress(float progress, CRGB color);
+    
+    // Implemented commands..
+    void pause();
+    void play();
+    bool isPaused();
 };
 
 
