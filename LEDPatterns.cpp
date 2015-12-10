@@ -2136,38 +2136,47 @@ void LEDPatterns::bouncingBallPattern() {
 }
 
 void LEDPatterns::bitmapPattern() {
-    assert(m_lazyBitmap != NULL);
+    ASSERT(m_lazyBitmap != NULL);
+    uint32_t imageWidth = m_lazyBitmap->getWidth();
+    uint32_t imageHeight = m_lazyBitmap->getHeight();
     // A chasing pattern..
     if (!m_firstTime) {
         if (m_timePassed >= m_duration) {
-            m_lazyBitmap->xOffset++;
+            // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
+            if (imageHeight == 1) {
+                m_lazyBitmap->xOffset++;
+                // Keep the offset in bounds
+                if (m_lazyBitmap->xOffset >= imageWidth) {
+                    m_lazyBitmap->xOffset = 0;
+                }
+            } else {
+                m_lazyBitmap->yOffset++;
+                // Keep the offset in bounds
+                if (m_lazyBitmap->yOffset >= imageHeight) {
+                    m_lazyBitmap->yOffset = 0;
+                }
+            }
             m_firstTime = true; // resets the tick on the next pass
         }
     }
     
-    // Keep the offset in bounds
-    uint32_t imageWidth = m_lazyBitmap->getWidth();
-    if (m_lazyBitmap->xOffset >= imageWidth) {
-        m_lazyBitmap->xOffset = 0;
-    }
-    
-    int imageOffset = m_lazyBitmap->xOffset;
-    const CRGB *imageLineData = m_lazyBitmap->getLineDataAtY(0); // TODO: multiple line support..
+    int xOffset = m_lazyBitmap->xOffset;
+    const CRGB *imageLineData = m_lazyBitmap->getLineDataAtY(m_lazyBitmap->yOffset); // TODO: multiple line support..
     
     // Pixel 0 is at this offset...loop through and update the leds
     int x = 0;
     while (x < m_ledCount) {
         int maxToCopy = m_ledCount - x;
-        int availableToCopy = imageWidth - imageOffset;
-        int amountToCopy = MIN(maxToCopy, availableToCopy);
-        memcpy(&m_leds[x], &imageLineData[imageOffset], amountToCopy*sizeof(CRGB));
+        int availableToCopy = imageWidth - xOffset;
+        int amountToCopy = min(maxToCopy, availableToCopy);
+        memcpy(&m_leds[x], &imageLineData[xOffset], amountToCopy*sizeof(CRGB));
         x += amountToCopy;
-        imageOffset += amountToCopy;
-        if (imageOffset >= imageWidth) {
-            imageOffset = 0;
+        xOffset += amountToCopy;
+        if (xOffset >= imageWidth) {
+            xOffset = 0;
         }
     }
-    assert(x == m_ledCount);
+    ASSERT(x == m_ledCount);
 
 }
 

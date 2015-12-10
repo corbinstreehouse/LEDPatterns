@@ -92,6 +92,7 @@ typedef enum : int16_t {
 class CDPatternLazyBitmap: public CDLazyBitmap {
 public:
     int xOffset;
+    int yOffset;
     // TODO: move into it's own header?
     CDPatternLazyBitmap(const char *filename) : CDLazyBitmap(filename) {   }
 };
@@ -292,6 +293,7 @@ public:
                  m_lazyBitmap = new CDPatternLazyBitmap(filename);
             }
             m_lazyBitmap->xOffset = 0;
+            m_lazyBitmap->yOffset = 0;
         }
     }
     
