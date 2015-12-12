@@ -71,7 +71,6 @@ class CDLazyBitmap {
 private:
     CDBitmapInfoHeader m_bInfo;
     CDBitmapInfoHeaderV4 m_bInfoV4;
-    char *m_filename;
     bool m_isValid;
     CDBitmapColorPaletteEntryRef m_colorTable;
     CRGB *m_lineData;
@@ -87,7 +86,6 @@ public:
     ~CDLazyBitmap();
     
     inline bool getIsValid() { return m_isValid; }
-    inline const char *getFilename() { return m_filename; }
     
     inline uint32_t getWidth() {
 		return m_bInfo.biWidth < 0 ? -m_bInfo.biWidth : m_bInfo.biWidth;

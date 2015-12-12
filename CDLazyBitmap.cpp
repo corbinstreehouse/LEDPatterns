@@ -79,7 +79,6 @@ void DumpFile(File *file) {
 
 CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL), m_lineData(NULL) {
     DEBUG_PRINTF("Bitmap loading: %s\r\n", filename);
-    m_filename = filename ? strdup(filename) : NULL;
     m_isValid = false;
 
     m_file = SdFile(filename, O_READ);
@@ -348,9 +347,6 @@ CDLazyBitmap::~CDLazyBitmap() {
         m_file.close();
     }
 
-    if (m_filename) {
-        free(m_filename);
-    }
     if (m_colorTable) {
         free(m_colorTable);
     }

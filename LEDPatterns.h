@@ -271,6 +271,7 @@ public:
 #if SD_CARD_SUPPORT
     // For LEDPatternTypeImage, you MUST set the data info. A file can have the image data anywhere inside of it, and dataOffset indicates the offset starting into the file.
     inline void setDataInfo(char *filename, uint32_t dataLength, uint32_t dataOffset = 0) {
+        // TODO: move to lazy bitmap for loading..
         if (m_dataFilename) {
             free(m_dataFilename);
         }
@@ -281,12 +282,8 @@ public:
     // for LEDPatternTypeBitmap you must set the bitmap filename. Calling this method loads the bitmap right at that moment.
     inline void setBitmapFilename(const char *filename) {
         if (m_lazyBitmap) {
-            if (m_lazyBitmap->getFilename() && filename && strcmp(m_lazyBitmap->getFilename(), filename) == 0) {
-                // Same bitmap... don't do anything; we reset the position
-            } else {
-                delete m_lazyBitmap;
-                m_lazyBitmap = NULL;
-            }
+            delete m_lazyBitmap;
+            m_lazyBitmap = NULL;
         }
         if (filename != NULL) {
             if (m_lazyBitmap == NULL) {
