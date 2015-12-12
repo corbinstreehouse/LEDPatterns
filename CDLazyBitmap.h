@@ -5,7 +5,7 @@
 
 #include <stdlib.h>
 #include "pixeltypes.h" // for CRGB
-#include "SD.h"
+#include "SdFat.h"
 
 typedef struct CDBitmapColorPaletteEntry *CDBitmapColorPaletteEntryRef;
 
@@ -77,10 +77,11 @@ private:
     CRGB *m_lineData;
     int m_currentLineY;
     uint32_t m_dataOffset;
-    uint m_fileIsOpen:1;
-    uint m_reserved:31;
+    uint32_t m_fileIsOpen:1;
+    uint32_t m_reserved:31;
+    SdFile m_file;
     
-    void loadLineDataAtY(int y, File *file);
+    void loadLineDataAtY(int y);
 public:
     CDLazyBitmap(const char *filename);
     ~CDLazyBitmap();

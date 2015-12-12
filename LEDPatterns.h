@@ -94,7 +94,7 @@ public:
     int xOffset;
     int yOffset;
     // TODO: move into it's own header?
-    CDPatternLazyBitmap(const char *filename) : CDLazyBitmap(filename) {   }
+    CDPatternLazyBitmap(const char *filename) : CDLazyBitmap(filename) { xOffset = 0; yOffset = 0;   }
 };
 
 
@@ -270,11 +270,11 @@ public:
 
 #if SD_CARD_SUPPORT
     // For LEDPatternTypeImage, you MUST set the data info. A file can have the image data anywhere inside of it, and dataOffset indicates the offset starting into the file.
-    inline void setDataInfo(char *copiedFilename, uint32_t dataLength, uint32_t dataOffset = 0) {
+    inline void setDataInfo(char *filename, uint32_t dataLength, uint32_t dataOffset = 0) {
         if (m_dataFilename) {
             free(m_dataFilename);
         }
-        m_dataFilename = copiedFilename;
+        m_dataFilename = strdup(filename);
         m_dataLength = dataLength;
         m_dataOffset = dataOffset;
     };

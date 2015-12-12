@@ -13,7 +13,7 @@
 
 #if SD_CARD_SUPPORT
     #include "SPI.h"
-    #include "SD.h"
+    #include "SdFat.h"
 #endif
 
 #if DEBUG
@@ -2140,24 +2140,22 @@ void LEDPatterns::bitmapPattern() {
     uint32_t imageWidth = m_lazyBitmap->getWidth();
     uint32_t imageHeight = m_lazyBitmap->getHeight();
     // A chasing pattern..
-    if (!m_firstTime) {
-        if (m_timePassed >= m_duration) {
-            // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
-            if (imageHeight == 1) {
-                m_lazyBitmap->xOffset++;
-                // Keep the offset in bounds
-                if (m_lazyBitmap->xOffset >= imageWidth) {
-                    m_lazyBitmap->xOffset = 0;
-                }
-            } else {
-                m_lazyBitmap->yOffset++;
-                // Keep the offset in bounds
-                if (m_lazyBitmap->yOffset >= imageHeight) {
-                    m_lazyBitmap->yOffset = 0;
-                }
+    if (m_duration == 0 || m_timePassed >= m_duration) {
+        // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
+        if (imageHeight == 1) {
+            m_lazyBitmap->xOffset++;
+            // Keep the offset in bounds
+            if (m_lazyBitmap->xOffset >= imageWidth) {
+                m_lazyBitmap->xOffset = 0;
             }
-            m_firstTime = true; // resets the tick on the next pass
+        } else {
+            m_lazyBitmap->yOffset++;
+            // Keep the offset in bounds
+            if (m_lazyBitmap->yOffset >= imageHeight) {
+                m_lazyBitmap->yOffset = 0;
+            }
         }
+        m_startTime = millis(); // resets the clock
     }
     
     int xOffset = m_lazyBitmap->xOffset;
@@ -2608,7 +2606,7 @@ void LEDPatterns::readDataIntoBufferStartingAtPosition(uint32_t position, uint8_
     int bufferSize = getBufferSize();
     
 //    ASSERT(m_dataFilename != NULL);
-    File f = SD.open(m_dataFilename);
+    SdFile f = SdFile(m_dataFilename, O_READ);
     //    if (!f.available()) {
     //        DEBUG_PRINTLN("  _-----------------------what???");
     //        delay(1000);
@@ -2617,18 +2615,18 @@ void LEDPatterns::readDataIntoBufferStartingAtPosition(uint32_t position, uint8_
     
     uint32_t filePositionToReadFrom = m_dataOffset + position;
     //    DEBUG_PRINTLN("  seek");
-    f.seek(filePositionToReadFrom);
+    f.seekSet(filePositionToReadFrom);
     
     // We can read up to the end based on our current position
     int amountWeWantToRead = m_dataLength - position;
     if (amountWeWantToRead <= bufferSize) {
         // Easy, read all the rest in
         //        DEBUG_PRINTF("  read %d", amountWeWantToRead);
-        f.readBytes((char*)buffer, amountWeWantToRead);
+        f.read((char*)buffer, amountWeWantToRead);
     } else {
         // Read up to the buffer size
         //        DEBUG_PRINTF("  read full %d", bufferSize);
-        f.readBytes((char*)buffer, bufferSize);
+        f.read((char*)buffer, bufferSize);
     }
     f.close();
 }

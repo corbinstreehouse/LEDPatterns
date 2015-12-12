@@ -16,7 +16,7 @@
 #endif
 
 #if DEBUG
-#define CLOSE_AND_RETURN(error) { DumpFile(&file); file.close(); Serial.println(error); return; }
+#define CLOSE_AND_RETURN(error) {/* DumpFile(&file); */m_file.close(); Serial.println(error); return; }
 #else
 #define CLOSE_AND_RETURN(error) { file.close(); return; }
 #endif
@@ -26,7 +26,6 @@
     #define __LITTLE_ENDIAN__
 #endif
 #endif
-
 
 #ifdef __LITTLE_ENDIAN__
 #define BITMAP_SIGNATURE 0x4d42
@@ -59,7 +58,7 @@ struct  __attribute__((__packed__)) CDBitmapColorPaletteEntry {
 };
 
 
-#if DEBUG
+#if DEBUGXX
 void DumpFile(File *file) {
     file->seek(0);
     int i = 0;
@@ -82,12 +81,15 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL), m_lineDat
     DEBUG_PRINTF("Bitmap loading: %s\r\n", filename);
     m_filename = filename ? strdup(filename) : NULL;
     m_isValid = false;
-    
-    File file = SD.open(m_filename);
-    if (!file.isValid()) return;
+
+    m_file = SdFile(filename, O_READ);
+    if (!m_file.isFile()) {
+        DEBUG_PRINTF(" not a bitmap file?: %s\r\n", filename);
+        return;
+    }
     
     CDBitmapFileHeader fileHeader;
-    if (file.readBytes((char*)&fileHeader, sizeof(CDBitmapFileHeader)) != sizeof(CDBitmapFileHeader)) {
+    if (m_file.read((char*)&fileHeader, sizeof(CDBitmapFileHeader)) != sizeof(CDBitmapFileHeader)) {
         CLOSE_AND_RETURN("not a window bitmap image");
     }
     
@@ -95,14 +97,14 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL), m_lineDat
         CLOSE_AND_RETURN("not a window bitmap image");
     }
     
-    if (file.readBytes((char*)&m_bInfo, sizeof(CDBitmapInfoHeader)) != sizeof(CDBitmapInfoHeader)) {
+    if (m_file.read((char*)&m_bInfo, sizeof(CDBitmapInfoHeader)) != sizeof(CDBitmapInfoHeader)) {
         CLOSE_AND_RETURN("not an image??");
     }
     
     // 40 byte size is just CDBitmapInfoHeader
     if (m_bInfo.biSize == (sizeof(CDBitmapInfoHeader) + sizeof(CDBitmapInfoHeaderV4))) {
         // Read in v4 stuff
-        if (file.readBytes((char*)&m_bInfoV4, sizeof(CDBitmapInfoHeaderV4)) != sizeof(CDBitmapInfoHeaderV4)) {
+        if (m_file.read((char*)&m_bInfoV4, sizeof(CDBitmapInfoHeaderV4)) != sizeof(CDBitmapInfoHeaderV4)) {
             CLOSE_AND_RETURN("biSize should be at least v4 size!");
         }
     } else if (m_bInfo.biSize != sizeof(CDBitmapInfoHeader)) {
@@ -119,6 +121,7 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL), m_lineDat
     }
     
     if (m_bInfo.biBitCount <= 8) {
+        DEBUG_PRINTF("reading palette: %s\r\n", filename);
         uint32_t paletteSize = m_bInfo.biClrUsed;
         if (paletteSize == 0) {
             paletteSize = 1 << m_bInfo.biBitCount; // 2^depth
@@ -127,7 +130,7 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL), m_lineDat
         
         // Read the palette.
         m_colorTable = (CDBitmapColorPaletteEntryRef)malloc(paletteSize);
-        if (file.readBytes((char*)m_colorTable, paletteSize) != paletteSize) {
+        if (m_file.read((char*)m_colorTable, paletteSize) != paletteSize) {
             CLOSE_AND_RETURN("No palette?");
         }
     } else {
@@ -138,13 +141,11 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL), m_lineDat
     m_dataOffset = fileHeader.bfOffBits;
     
     // Load the first line
-    loadLineDataAtY(0, &file);
+    loadLineDataAtY(0);
     m_isValid = true;
-
-    file.close();
 }
 
-void CDLazyBitmap::loadLineDataAtY(int y, File *file) {
+void CDLazyBitmap::loadLineDataAtY(int y) {
     if (y >= getHeight() || y < 0) {
         DEBUG_PRINTLN("bad y offset requested");
         return;
@@ -163,13 +164,13 @@ void CDLazyBitmap::loadLineDataAtY(int y, File *file) {
         // Seek to that line
         uint32_t lineOffset = m_dataOffset + y * lineWidth;
 
-        file->seek(lineOffset);
+        m_file.seekSet(lineOffset);
         
         int Index = 0;
         if (m_bInfo.biCompression == 0) {
 //            for (unsigned int i = 0; i < getHeight(); i++)
             {
-                file->readBytes((char*)lineBuffer, lineWidth);
+                m_file.read((char*)lineBuffer, lineWidth);
                 
                 uint8_t *linePtr = lineBuffer;
                 uint32_t width = getWidth();
@@ -243,8 +244,8 @@ void CDLazyBitmap::loadLineDataAtY(int y, File *file) {
             int x = 0, y = 0;
             
             while (file.eof() == false) {
-                file.read((char*) &Count, sizeof(uint8_t));
-                file.read((char*) &ColorIndex, sizeof(uint8_t));
+                m_file.read((char*) &Count, sizeof(uint8_t));
+                m_file.read((char*) &ColorIndex, sizeof(uint8_t));
                 
                 if (Count > 0) {
                     Index = x + y * GetWidth();
@@ -330,19 +331,23 @@ void CDLazyBitmap::loadLineDataAtY(int y, File *file) {
         
         
         free(lineBuffer);
+        // done w/the file, so close it now
+        if (getHeight() == 1) {
+            m_file.close();
+        }
     }
 }
 
 CRGB *CDLazyBitmap::getLineDataAtY(int y) {
-    File file = SD.open(m_filename);
-//    if (!file.isValid()) return;
-    loadLineDataAtY(y, &file);
-    file.close();
-    
+    loadLineDataAtY(y);
     return m_lineData;
 }
 
 CDLazyBitmap::~CDLazyBitmap() {
+    if (m_file.isOpen()) {
+        m_file.close();
+    }
+
     if (m_filename) {
         free(m_filename);
     }
