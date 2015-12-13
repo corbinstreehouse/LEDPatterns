@@ -89,15 +89,6 @@ typedef enum : int16_t {
 } LEDPatternType;
 
 
-class CDPatternLazyBitmap: public CDLazyBitmap {
-public:
-    int xOffset;
-    int yOffset;
-    // TODO: move into it's own header?
-    CDPatternLazyBitmap(const char *filename) : CDLazyBitmap(filename) { xOffset = 0; yOffset = 0;   }
-};
-
-
 class LEDPatterns {
 private:
     uint32_t m_startTime;
@@ -141,7 +132,7 @@ private:
     
 #if SD_CARD_SUPPORT
     // lazy bitmaps will replace my file format and file reading (soon!)
-    CDPatternLazyBitmap *m_lazyBitmap;
+    CDPatternBitmap *m_lazyBitmap;
     
     uint32_t m_dataOffsetReadIntoBuffer1;
     uint32_t m_dataOffsetReadIntoBuffer2;
@@ -203,7 +194,7 @@ private: // Patterns
     void bouncingBallPattern();
     void bitmapPattern();
     
-    void fillPixelsFromBitmap(CRGB *pixels, int xOffset, int yOffset);
+    void fillPixelsFromBitmap(CRGB *pixels, int xOffset);
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();
@@ -289,10 +280,10 @@ public:
         }
         if (filename != NULL) {
             if (m_lazyBitmap == NULL) {
-                 m_lazyBitmap = new CDPatternLazyBitmap(filename);
+                m_lazyBitmap = new CDPatternBitmap(filename, getTempBuffer1(), getTempBuffer2(), getBufferSize());
+            } else {
+                m_lazyBitmap->moveToStart();
             }
-            m_lazyBitmap->xOffset = 0;
-            m_lazyBitmap->yOffset = 0;
         }
     }
     

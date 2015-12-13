@@ -595,7 +595,7 @@ void LEDPatterns::show() {
     }
     m_timePassed = m_firstTime ? 0 : now - m_startTime;
 
-    m_intervalCount = m_timePassed / m_duration;
+    m_intervalCount = m_duration ? m_timePassed / m_duration : 0;
     
     if (!_PatternIsContinuous(m_patternType)) {
         // Since it isn't continuous, modify the timePassed here
@@ -2140,9 +2140,9 @@ void LEDPatterns::bouncingBallPattern() {
     blur(4, m_leds, getTempBuffer1(), m_ledCount);
 }
 
-void LEDPatterns::fillPixelsFromBitmap(CRGB *pixels, int xOffset, int yOffset) {
+void LEDPatterns::fillPixelsFromBitmap(CRGB *pixels, int xOffset) {
     uint32_t imageWidth = m_lazyBitmap->getWidth();
-    const CRGB *imageLineData = m_lazyBitmap->getLineDataAtY(yOffset);
+    const CRGB *imageLineData = m_lazyBitmap->getFirstBuffer();
     
     // Pixel 0 is at this offset...loop through and update the leds
     int x = 0;
@@ -2162,32 +2162,21 @@ void LEDPatterns::fillPixelsFromBitmap(CRGB *pixels, int xOffset, int yOffset) {
 
 void LEDPatterns::bitmapPattern() {
     ASSERT(m_lazyBitmap != NULL);
-    uint32_t imageWidth = m_lazyBitmap->getWidth();
-    uint32_t imageHeight = m_lazyBitmap->getHeight();
     float percentageThrough = 0;
-
     // A chasing pattern; duration of 0 is to run as fast as it can
     if (m_duration == 0 || m_timePassed >= m_duration) {
         // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
-        if (imageHeight == 1) {
-            m_lazyBitmap->xOffset++;
-            // Keep the offset in bounds
-            if (m_lazyBitmap->xOffset >= imageWidth) {
-                m_lazyBitmap->xOffset = 0;
-            }
+        if (m_lazyBitmap->getHeight() == 1) {
+            m_lazyBitmap->incXOffset();
         } else {
-            m_lazyBitmap->yOffset++;
-            // Keep the offset in bounds
-            if (m_lazyBitmap->yOffset >= imageHeight) {
-                m_lazyBitmap->yOffset = 0;
-            }
+            m_lazyBitmap->incYOffsetBuffers();
         }
         m_startTime = millis(); // resets the clock
     } else if (!m_firstTime) {
         percentageThrough = getPercentagePassed();
     }
 
-    fillPixelsFromBitmap(m_leds, m_lazyBitmap->xOffset, m_lazyBitmap->yOffset);
+    fillPixelsFromBitmap(m_leds, m_lazyBitmap->getXOffset());
 }
 
 void LEDPatterns::lifePattern(bool dynamic) {

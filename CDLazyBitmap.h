@@ -74,17 +74,14 @@ private:
     CDBitmapInfoHeaderV4 m_bInfoV4;
     bool m_isValid;
     CDBitmapColorPaletteEntryRef m_colorTable;
-    CRGB *m_lineData;
-    int m_currentLineY;
+  
     uint32_t m_dataOffset;
-    uint32_t m_fileIsOpen:1;
-    uint32_t m_reserved:31;
-    FatFile m_file;
     
-    void loadLineDataAtY(int y);
+    FatFile m_file;
 public:
     CDLazyBitmap(const char *filename);
     ~CDLazyBitmap();
+    
     
     inline bool getIsValid() { return m_isValid; }
     
@@ -96,11 +93,45 @@ public:
 		return m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
 	}
     
-    // y can be from 0 to height
-    CRGB *getLineDataAtY(int y);
+    // fills the buffer from the image data, loading it as needed.
+    // y can be from 0 to height-1.
+    // buffer MUST be getWidth*sizeof(CRGB).
+    void fillRGBBufferFromYOffset(CRGB *buffer, int y);
 };
 
 
+class CDPatternBitmap: public CDLazyBitmap {
+private:
+    CRGB *m_buffer1;
+    CRGB *m_buffer2;
+    int m_yOffset; // y offset for the first buffer, second is the next line (or wrapped, the first line)
+    int m_xOffset; // used by the pattern
+    uint32_t m_bufferOwned:1;
+    uint32_t m_buffer1Valid:1; // meaning valid for yOffset; it might have been used for the next yOffset
+    
+public:
+    // buffers are REFERENCED, if large enough -- they are not owned by this class, and the memory must be kept alive outside of it
+    CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize);
+    ~CDPatternBitmap();
+    
+    void incYOffsetBuffers(); // Loads the next y offset, wrapping as needed
+    inline void incXOffset() {
+        m_xOffset++;
+        if (m_xOffset >= getWidth()) {
+            m_xOffset = 0;
+        }
+    }
+    inline void moveToStart() {
+        m_yOffset = -1;
+        incYOffsetBuffers();
+    }
+    inline int getXOffset() { return m_xOffset; }
+    inline int getYOffset() { return m_yOffset; }
+    
+    CRGB *getFirstBuffer(); // always returns a buffer with the data up to the width
+    CRGB *getSecondBuffer(); // always returns a buffer with the data up to the width for the second line (if width > 1)
+    
+};
 
 
 
