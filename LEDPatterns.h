@@ -203,6 +203,8 @@ private: // Patterns
     void bouncingBallPattern();
     void bitmapPattern();
     
+    void fillPixelsFromBitmap(CRGB *pixels, int xOffset, int yOffset);
+    
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();
     

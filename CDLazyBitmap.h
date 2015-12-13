@@ -1,11 +1,12 @@
-// I wrote most this
+// I wrote everythihg except the struct defines, which came from MS and other places.
+// corbin
 
 #ifndef _CD_LAZY_BITMAP_H_
 #define _CD_LAZY_BITMAP_H_
 
 #include <stdlib.h>
 #include "pixeltypes.h" // for CRGB
-#include "SdFat.h"
+#include "FatFile.h"
 
 typedef struct CDBitmapColorPaletteEntry *CDBitmapColorPaletteEntryRef;
 
@@ -78,7 +79,7 @@ private:
     uint32_t m_dataOffset;
     uint32_t m_fileIsOpen:1;
     uint32_t m_reserved:31;
-    SdFile m_file;
+    FatFile m_file;
     
     void loadLineDataAtY(int y);
 public:

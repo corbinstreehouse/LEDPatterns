@@ -81,7 +81,7 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL), m_lineDat
     DEBUG_PRINTF("Bitmap loading: %s\r\n", filename);
     m_isValid = false;
 
-    m_file = SdFile(filename, O_READ);
+    m_file = FatFile(filename, O_READ);
     if (!m_file.isFile()) {
         DEBUG_PRINTF(" not a bitmap file?: %s\r\n", filename);
         return;

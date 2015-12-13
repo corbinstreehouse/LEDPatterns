@@ -28,6 +28,11 @@
 #define byte uint8_t
 #endif
 
+// OS X has MIN but not min, and Teensy has min but not MIN
+#ifndef MIN
+#define MIN min
+#endif
+
 class LEDStateInfo {
 public:
     LEDStateInfo(int pos, int ledCount, int stateObjectCount, int velocity);
@@ -2135,11 +2140,33 @@ void LEDPatterns::bouncingBallPattern() {
     blur(4, m_leds, getTempBuffer1(), m_ledCount);
 }
 
+void LEDPatterns::fillPixelsFromBitmap(CRGB *pixels, int xOffset, int yOffset) {
+    uint32_t imageWidth = m_lazyBitmap->getWidth();
+    const CRGB *imageLineData = m_lazyBitmap->getLineDataAtY(yOffset);
+    
+    // Pixel 0 is at this offset...loop through and update the leds
+    int x = 0;
+    while (x < m_ledCount) {
+        int maxToCopy = m_ledCount - x;
+        int availableToCopy = imageWidth - xOffset;
+        int amountToCopy = MIN(maxToCopy, availableToCopy);
+        memcpy(&pixels[x], &imageLineData[xOffset], amountToCopy*sizeof(CRGB));
+        x += amountToCopy;
+        xOffset += amountToCopy;
+        if (xOffset >= imageWidth) {
+            xOffset = 0;
+        }
+    }
+    ASSERT(x == m_ledCount);
+}
+
 void LEDPatterns::bitmapPattern() {
     ASSERT(m_lazyBitmap != NULL);
     uint32_t imageWidth = m_lazyBitmap->getWidth();
     uint32_t imageHeight = m_lazyBitmap->getHeight();
-    // A chasing pattern..
+    float percentageThrough = 0;
+
+    // A chasing pattern; duration of 0 is to run as fast as it can
     if (m_duration == 0 || m_timePassed >= m_duration) {
         // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
         if (imageHeight == 1) {
@@ -2156,26 +2183,11 @@ void LEDPatterns::bitmapPattern() {
             }
         }
         m_startTime = millis(); // resets the clock
+    } else if (!m_firstTime) {
+        percentageThrough = getPercentagePassed();
     }
-    
-    int xOffset = m_lazyBitmap->xOffset;
-    const CRGB *imageLineData = m_lazyBitmap->getLineDataAtY(m_lazyBitmap->yOffset); // TODO: multiple line support..
-    
-    // Pixel 0 is at this offset...loop through and update the leds
-    int x = 0;
-    while (x < m_ledCount) {
-        int maxToCopy = m_ledCount - x;
-        int availableToCopy = imageWidth - xOffset;
-        int amountToCopy = min(maxToCopy, availableToCopy);
-        memcpy(&m_leds[x], &imageLineData[xOffset], amountToCopy*sizeof(CRGB));
-        x += amountToCopy;
-        xOffset += amountToCopy;
-        if (xOffset >= imageWidth) {
-            xOffset = 0;
-        }
-    }
-    ASSERT(x == m_ledCount);
 
+    fillPixelsFromBitmap(m_leds, m_lazyBitmap->xOffset, m_lazyBitmap->yOffset);
 }
 
 void LEDPatterns::lifePattern(bool dynamic) {
@@ -2606,7 +2618,7 @@ void LEDPatterns::readDataIntoBufferStartingAtPosition(uint32_t position, uint8_
     int bufferSize = getBufferSize();
     
 //    ASSERT(m_dataFilename != NULL);
-    SdFile f = SdFile(m_dataFilename, O_READ);
+    FatFile f = FatFile(m_dataFilename, O_READ);
     //    if (!f.available()) {
     //        DEBUG_PRINTLN("  _-----------------------what???");
     //        delay(1000);
