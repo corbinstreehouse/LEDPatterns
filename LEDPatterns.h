@@ -89,6 +89,37 @@ typedef enum : int16_t {
 } LEDPatternType;
 
 
+struct __attribute__((__packed__)) LEDBitmapPatternOptions {
+    uint32_t shouldInterpolate:1;
+    uint32_t stretchToFill:1; // corbin -- would be cool to implement!
+    uint32_t reserved:30;
+    
+    inline LEDBitmapPatternOptions(bool shouldInterpolate, bool stretchToFill) {
+        this->shouldInterpolate = shouldInterpolate;
+        this->stretchToFill = stretchToFill;
+    }
+    
+};
+
+
+// options that only apply to particular patterns, so I combine them all together. i could put the patternColor here as it only applies to certain patterns.
+// warning: keep at 32-bits for now! Or I have to expand the header
+struct __attribute__((__packed__)) LEDPatternOptions {
+    union {
+        LEDBitmapPatternOptions bitmapOptions;
+        uint32_t raw;
+    };
+    
+    inline LEDPatternOptions() __attribute__((always_inline))
+    {
+        //uninitialized
+    }
+    
+    inline LEDPatternOptions(LEDBitmapPatternOptions bOptions) : bitmapOptions(bOptions) { }
+    inline LEDPatternOptions(uint32_t raw) : raw(raw) { }
+};
+
+
 class LEDPatterns {
 private:
     uint32_t m_startTime;
@@ -105,8 +136,9 @@ private:
     uint32_t m_timedPattern;
     // Stuff that applies to only certain patterns
     CRGB m_patternColor;
+    LEDPatternOptions m_patternOptions;
     
-    // Extra state/info for some patterns.... name is irrelevant
+    // Extra state for some patterns.... name is irrelevant
     uint32_t m_initialPixel;
     uint32_t m_initialPixel1;
     uint32_t m_initialPixel2;
@@ -194,7 +226,8 @@ private: // Patterns
     void bouncingBallPattern();
     void bitmapPattern();
     
-    void fillPixelsFromBitmap(CRGB *pixels, int xOffset);
+    void bitmapPatternFillPixels();
+    void bitmapPatternInterpolatePixels(float percentage, bool isChasingPattern);
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
     void crossFadeToNextPattern();
@@ -260,6 +293,8 @@ public:
     
     // Some patterns are based off a primary color
     inline void setPatternColor(CRGB color) { m_patternColor = color; };
+    inline void setPatternOptions(LEDPatternOptions patternOptions) { m_patternOptions = patternOptions; }
+    
 
 #if SD_CARD_SUPPORT
     // For LEDPatternTypeImage, you MUST set the data info. A file can have the image data anywhere inside of it, and dataOffset indicates the offset starting into the file.
@@ -268,7 +303,7 @@ public:
         if (m_dataFilename) {
             free(m_dataFilename);
         }
-        m_dataFilename = strdup(filename);
+        m_dataFilename = filename ? strdup(filename) : NULL;
         m_dataLength = dataLength;
         m_dataOffset = dataOffset;
     };

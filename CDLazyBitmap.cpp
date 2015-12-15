@@ -389,7 +389,11 @@ void CDPatternBitmap::incYOffsetBuffers() {
     if (oldOffset == -1) {
         fillRGBBufferFromYOffset(m_buffer1, m_yOffset);
         if (m_buffer2) {
-            fillRGBBufferFromYOffset(m_buffer2, secondBufferOffset);
+            if (height == 1) {
+                memcpy(m_buffer2, m_buffer1, sizeof(CRGB)*getWidth());
+            } else {
+                fillRGBBufferFromYOffset(m_buffer2, secondBufferOffset);
+            }
         }
     } else {
         // If only have one buffer, just fill up the first one

@@ -1771,61 +1771,7 @@ void LEDPatterns::firePatternWithColor(bool blue) {
         fireColorWithPalette(HeatColors_p, COOLING, SPARKING);
     }
     
-    return; // corbin
-/*
-    if (!shouldUpdatePattern()) {
-        return;
-    }
-    // Array of temperature readings at each simulation cell
-    byte *heat = (byte *)getTempBuffer1();
-    byte *heat2 = (byte *)getTempBuffer2();
-    
-    if (m_firstTime) {
-        for (int i = 0; i < m_ledCount; i++) {
-            heat[i] = 0; // random8(255);
-            heat2[i] = 0;
-        }
-    }
-
-    int count = m_ledCount / 2;
-    int secondHalfCount = m_ledCount - count;
-    if (secondHalfCount > count) {
-        count = secondHalfCount;
-    }
-    
-    // Step 1.  Cool down every cell a little
-    for( int i = 0; i < count; i++) {
-        heat[i] = qsub8( heat[i],  random(0, ((COOLING * 10) / count) + 2));
-        heat2[i] = qsub8( heat2[i],  random(0, ((COOLING * 10) / count) + 2));
-    }
-    
-    // Step 2.  Heat from each cell drifts 'up' and diffuses a little
-    for( int k= count - 3; k > 0; k--) {
-        heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
-        heat2[k] = (heat2[k - 1] + heat2[k - 2] + heat2[k - 2] ) / 3;
-    }
-    
-    // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
-    if( random(255) < SPARKING ) {
-        int y = random(7);
-        heat[y] = qadd8( heat[y], random(160,255) );
-        y = random(7);
-        heat2[y] = qadd8( heat2[y], random(160,255) );
-    }
-    
-    // Step 4.  Map from heat cells to LED colors
-    int k = m_ledCount - 1;
-    for( int j = 0; j < count; j++) {
-        if (blue) {
-            m_leds[j] = HeatColorBlue( heat[j]);
-            m_leds[k] = HeatColorBlue(heat2[j]);
-        } else {
-            m_leds[j] = HeatColor( heat[j]);
-            m_leds[k] = HeatColor(heat2[j]);
-        }
-        k--;
-    }
- */
+    return;
 }
 
 void LEDPatterns::firePattern() {
@@ -2140,7 +2086,8 @@ void LEDPatterns::bouncingBallPattern() {
     blur(4, m_leds, getTempBuffer1(), m_ledCount);
 }
 
-void LEDPatterns::fillPixelsFromBitmap(CRGB *pixels, int xOffset) {
+void LEDPatterns::bitmapPatternFillPixels() {
+    int xOffset = m_lazyBitmap->getXOffset();
     uint32_t imageWidth = m_lazyBitmap->getWidth();
     const CRGB *imageLineData = m_lazyBitmap->getFirstBuffer();
     
@@ -2150,7 +2097,7 @@ void LEDPatterns::fillPixelsFromBitmap(CRGB *pixels, int xOffset) {
         int maxToCopy = m_ledCount - x;
         int availableToCopy = imageWidth - xOffset;
         int amountToCopy = MIN(maxToCopy, availableToCopy);
-        memcpy(&pixels[x], &imageLineData[xOffset], amountToCopy*sizeof(CRGB));
+        memcpy(&m_leds[x], &imageLineData[xOffset], amountToCopy*sizeof(CRGB));
         x += amountToCopy;
         xOffset += amountToCopy;
         if (xOffset >= imageWidth) {
@@ -2160,13 +2107,50 @@ void LEDPatterns::fillPixelsFromBitmap(CRGB *pixels, int xOffset) {
     ASSERT(x == m_ledCount);
 }
 
+void LEDPatterns::bitmapPatternInterpolatePixels(float percentage, bool isChasingPattern) {
+    uint32_t imageWidth = m_lazyBitmap->getWidth();
+    CRGB *firstRow = m_lazyBitmap->getFirstBuffer();
+    
+//    NSLog(@"per: %g fraction: %d", percentage, fraction);
+    
+    int xOffset = m_lazyBitmap->getXOffset();
+    if (isChasingPattern) {
+        fract16 fraction = round(percentage*65536); // yeah, hardcoded..oh well, 2^16
+        for (int i = 0; i < m_ledCount; i++) {
+            int firstOffset = xOffset;
+            xOffset++;
+            if (xOffset >= imageWidth) {
+                xOffset = 0;
+            }
+            m_leds[i] = firstRow[firstOffset].lerp16(firstRow[xOffset], fraction);
+        }
+    } else {
+        CRGB *secondRow = m_lazyBitmap->getSecondBuffer();
+        for (int i = 0; i < m_ledCount; i++) {
+//            m_leds[i] = firstRow[xOffset].lerp16(secondRow[xOffset], fraction);
+// ^ fast! but not what i wanted...
+            CRGB first = firstRow[xOffset];
+            CRGB second = secondRow[xOffset];
+            m_leds[i].r = first.r + round(percentage * (float)(second.r - first.r));
+            m_leds[i].g = first.g + round(percentage * (float)(second.g - first.g));
+            m_leds[i].b = first.b + round(percentage * (float)(second.b - first.b));
+            
+            xOffset++;
+            if (xOffset >= imageWidth) {
+                xOffset = 0;
+            }
+        }
+    }
+}
+
 void LEDPatterns::bitmapPattern() {
     ASSERT(m_lazyBitmap != NULL);
     float percentageThrough = 0;
+    // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
+    bool isChasingPattern = m_lazyBitmap->getHeight() == 1;
     // A chasing pattern; duration of 0 is to run as fast as it can
     if (m_duration == 0 || m_timePassed >= m_duration) {
-        // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
-        if (m_lazyBitmap->getHeight() == 1) {
+        if (isChasingPattern) {
             m_lazyBitmap->incXOffset();
         } else {
             m_lazyBitmap->incYOffsetBuffers();
@@ -2176,7 +2160,11 @@ void LEDPatterns::bitmapPattern() {
         percentageThrough = getPercentagePassed();
     }
 
-    fillPixelsFromBitmap(m_leds, m_lazyBitmap->getXOffset());
+    if (m_patternOptions.bitmapOptions.shouldInterpolate && percentageThrough > 0) {
+        bitmapPatternInterpolatePixels(percentageThrough, isChasingPattern);
+    } else {
+        bitmapPatternFillPixels();
+    }
 }
 
 void LEDPatterns::lifePattern(bool dynamic) {
