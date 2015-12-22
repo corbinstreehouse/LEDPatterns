@@ -429,10 +429,10 @@ CRGB *CDPatternBitmap::getSecondBuffer() {
         return m_buffer2;
     }
     // we have to re-use the first buffer..
-    int secondBufferOffset = m_yOffset;
-    if (secondBufferOffset >= getHeight()) {
-        secondBufferOffset = 0;
-    }
+//    int secondBufferOffset = m_yOffset;
+//    if (secondBufferOffset >= getHeight()) {
+//        secondBufferOffset = 0;
+//    }
     fillRGBBufferFromYOffset(m_buffer1, m_yOffset);
     m_buffer1Valid = false;
     return m_buffer1;
