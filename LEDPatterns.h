@@ -10,8 +10,10 @@
 #define __LEDDigitalCyrWheel__LEDPatterns__
 
 #include "Arduino.h"
-#include "pixeltypes.h"
-#include "colorutils.h"
+#include "FastLED.h"
+//#include "led_sysdefs.h"
+//#include "pixeltypes.h"
+//#include "colorutils.h"
 #include "CDLazyBitmap.h"
 
 // Turn this off if you don't have an SD card
