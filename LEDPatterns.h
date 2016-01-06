@@ -11,115 +11,17 @@
 
 #include "Arduino.h"
 #include "FastLED.h"
+
+// Turn this off if you don't have an SD card. Needs to be set before the LEDPatternType include.
+#define SD_CARD_SUPPORT 1
+
+#include "LEDPatternType.h"
+
 //#include "led_sysdefs.h"
 //#include "pixeltypes.h"
 //#include "colorutils.h"
+
 #include "CDLazyBitmap.h"
-
-// Turn this off if you don't have an SD card
-#define SD_CARD_SUPPORT 1
-
-// NOTE: update g_patternTypeNames when this changes!!
-typedef enum : int16_t {
-    LEDPatternTypeMin = 0,
-    
-    LEDPatternTypeRotatingRainbow = 0,
-    LEDPatternTypeRotatingMiniRainbows,
-    
-    LEDPatternTypeFadeOut,
-    LEDPatternTypeFadeIn,
-    LEDPatternTypeColorWipe,
-    LEDPatternTypeDoNothing,
-    LEDPatternTypeTheaterChase,
-    
-    LEDPatternTypeGradient,
-    LEDPatternTypePluseGradientEffect,
-    LEDPatternTypeRandomGradients,
-    
-#if SD_CARD_SUPPORT
-    // Patterns defined by an image
-    LEDPatternTypeImageLinearFade, // smooth traverse over pixels
-    LEDPatternTypeImageEntireStrip, // one strip piece at a time defined
-#endif
-    
-    // the next set is ordered specifically
-    LEDPatternTypeWarmWhiteShimmer,
-    LEDPatternTypeRandomColorWalk,
-    LEDPatternTypeTraditionalColors,
-    LEDPatternTypeColorExplosion,
-    LEDPatternTypeRWGradient,
-    
-    LEDPatternTypeWhiteBrightTwinkle,
-    LEDPatternTypeWhiteRedBrightTwinkle,
-    LEDPatternTypeRedGreenBrightTwinkle,
-    LEDPatternTypeColorTwinkle,
-    
-    LEDPatternTypeCollision,
-    
-    LEDPatternTypeWave, // 4 wave
-    LEDPatternTypeBottomGlow,
-    LEDPatternTypeRotatingBottomGlow,
-    
-    LEDPatternTypeSolidColor,
-    LEDPatternTypeSolidRainbow,
-    LEDPatternTypeRainbowWithSpaces,
-    
-    LEDPatternTypeBlink,
-    
-    LEDPatternTypeFire,
-    LEDPatternTypeBlueFire,
-    
-    LEDPatternFlagEffect,
-    
-    LEDPatternTypeCrossfade,
-    LEDPatternTypeSinWave, 
-    LEDPatternTypeFunkyClouds,
-    
-    LEDPatternTypeLife,
-    LEDPatternTypeLifeDynamic,
-    
-    LEDPatternTypeBouncingBall,
-    LEDPatternTypeRainbowFire,
-    LEDPatternTypeLavaFire,
-    
-#if SD_CARD_SUPPORT
-    LEDPatternTypeBitmap,
-#endif
-    
-    LEDPatternTypeMax,
-    LEDPatternTypeAllOff = LEDPatternTypeMax,
-} LEDPatternType;
-
-
-struct __attribute__((__packed__)) LEDBitmapPatternOptions {
-    uint32_t shouldInterpolate:1;
-    uint32_t stretchToFill:1; // corbin -- would be cool to implement!
-    uint32_t reserved:30;
-    
-    inline LEDBitmapPatternOptions(bool shouldInterpolate, bool stretchToFill) {
-        this->shouldInterpolate = shouldInterpolate;
-        this->stretchToFill = stretchToFill;
-    }
-    
-};
-
-
-// options that only apply to particular patterns, so I combine them all together. i could put the patternColor here as it only applies to certain patterns.
-// warning: keep at 32-bits for now! Or I have to expand the header
-struct __attribute__((__packed__)) LEDPatternOptions {
-    union {
-        LEDBitmapPatternOptions bitmapOptions;
-        uint32_t raw;
-    };
-    
-    inline LEDPatternOptions() __attribute__((always_inline))
-    {
-        //uninitialized
-    }
-    
-    inline LEDPatternOptions(LEDBitmapPatternOptions bOptions) : bitmapOptions(bOptions) { }
-    inline LEDPatternOptions(uint32_t raw) : raw(raw) { }
-};
 
 
 class LEDPatterns {
