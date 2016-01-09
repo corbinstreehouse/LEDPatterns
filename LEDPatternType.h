@@ -1,5 +1,5 @@
 //
-//  LEDPatterns.h
+//  LEDPatternType.h
 //  LEDDigitalCyrWheel
 //
 //  Created by corbin dunn on 5/31/14.
@@ -97,7 +97,7 @@ typedef struct __attribute__((__packed__)) LEDBitmapPatternOptions {
 
 // options that only apply to particular patterns, so I combine them all together. i could put the patternColor here as it only applies to certain patterns.
 // warning: keep at 32-bits for now! Or I have to expand the header
-struct __attribute__((__packed__)) LEDPatternOptions {
+typedef struct __attribute__((__packed__)) LEDPatternOptions {
     union {
         LEDBitmapPatternOptions bitmapOptions;
         uint32_t raw;
@@ -114,7 +114,7 @@ struct __attribute__((__packed__)) LEDPatternOptions {
     inline LEDPatternOptions(uint32_t raw) : raw(raw) { }
 #endif
     
-};
+} LEDPatternOptions;
 
 
 #endif
