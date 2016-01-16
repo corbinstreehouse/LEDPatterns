@@ -12,7 +12,12 @@
 // NOTE: update g_patternTypeNames when this changes!!
 
 //enum _name : _type _name; enum _name : _type
+#ifdef PATTERN_EDITOR
 #define CD_ENUM(_type, _name)     enum _name : _type _name; enum _name : _type
+#else
+#define CD_ENUM(_type, _name)     enum _name : _type
+#endif
+
 typedef CD_ENUM(int16_t, LEDPatternType) {
     LEDPatternTypeMin = 0,
     
