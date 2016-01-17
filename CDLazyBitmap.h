@@ -5,8 +5,7 @@
 #define _CD_LAZY_BITMAP_H_
 
 #include <stdlib.h>
-#include "led_sysdefs.h"
-#include "pixeltypes.h" // for CRGB
+#include "FastLED.h"
 #include "FatFile.h"
 
 typedef struct CDBitmapColorPaletteEntry *CDBitmapColorPaletteEntryRef;
