@@ -102,15 +102,16 @@ public:
 
 class CDPatternBitmap: public CDLazyBitmap {
 private:
+    CRGB *m_buffer; // When non NULL, we have fully loaded the bitmap. We need to free this if m_bufferOwned is true (only for the pattern editor)
     CRGB *m_buffer1;
     CRGB *m_buffer2;
     int m_yOffset; // y offset for the first buffer, second is the next line (or wrapped, the first line)
     int m_xOffset; // used by the pattern
-    uint32_t m_bufferOwned:1;
+    uint32_t m_buffer1Owned:1;
     uint32_t m_buffer1Valid:1; // meaning valid for yOffset; it might have been used for the next yOffset
-    
+    uint32_t m_bufferOwned:1;
 public:
-    // buffers are REFERENCED, if large enough -- they are not owned by this class, and the memory must be kept alive outside of it
+    // buffers MAY be REFERENCED, if large enough -- they are not owned by this class, and the memory must be kept alive outside of it
     CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize);
     ~CDPatternBitmap();
     

@@ -11,11 +11,10 @@
 
 // NOTE: update g_patternTypeNames when this changes!!
 
-//enum _name : _type _name; enum _name : _type
-#ifdef PATTERN_EDITOR
-#define CD_ENUM(_type, _name)     enum _name : _type _name; enum _name : _type
+#if (__cplusplus && __cplusplus >= 201103L && (__has_extension(cxx_strong_enums) || __has_feature(objc_fixed_enum))) || (!__cplusplus && __has_feature(objc_fixed_enum))
+    #define CD_ENUM(_type, _name)     enum _name : _type _name; enum _name : _type
 #else
-#define CD_ENUM(_type, _name)     enum _name : _type
+    #define CD_ENUM(_type, _name)     enum _name : _type
 #endif
 
 typedef CD_ENUM(int16_t, LEDPatternType) {

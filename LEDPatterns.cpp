@@ -2148,6 +2148,7 @@ void LEDPatterns::bitmapPattern() {
     float percentageThrough = 0;
     // Treat one line bitmaps as a chaser, and multi-line bitmaps as regulars..
     bool isChasingPattern = m_lazyBitmap->getHeight() == 1;
+//    Serial.printf("m_duration: %d, m_timePassed: %d\r\n", m_duration, m_timePassed);
     // A chasing pattern; duration of 0 is to run as fast as it can
     if (m_duration == 0 || m_timePassed >= m_duration) {
         if (isChasingPattern) {
