@@ -69,17 +69,6 @@ private:
 #if SD_CARD_SUPPORT
     // lazy bitmaps will replace my file format and file reading (soon!)
     CDPatternBitmap *m_lazyBitmap;
-    
-    uint32_t m_dataOffsetReadIntoBuffer1;
-    uint32_t m_dataOffsetReadIntoBuffer2;
-    
-    char *m_dataFilename; // copied
-    uint32_t m_dataLength;
-    uint32_t m_dataOffset;
-    
-    void initImageDataForHeader();
-    void readDataIntoBufferStartingAtPosition(uint32_t position, uint8_t *buffer);
-    uint8_t *dataForOffset(uint32_t offset);
 #endif
     
     inline int getBufferSize() { return sizeof(CRGB) * m_ledCount; }
@@ -161,7 +150,7 @@ protected:
     inline uint32_t getLEDCount() { return m_ledCount; };
 public:
     
-    LEDPatterns(uint32_t ledCount) : m_ledCount(ledCount), m_duration(1000), m_pauseTime(0), m_dataFilename(0) {
+    LEDPatterns(uint32_t ledCount) : m_ledCount(ledCount), m_duration(1000), m_pauseTime(0) {
         int byteCount = sizeof(CRGB) * ledCount;
         m_leds = (CRGB *)malloc(byteCount);
         bzero(m_leds, byteCount);
@@ -201,17 +190,7 @@ public:
     
 
 #if SD_CARD_SUPPORT
-    // For LEDPatternTypeImage, you MUST set the data info. A file can have the image data anywhere inside of it, and dataOffset indicates the offset starting into the file.
-    inline void setDataInfo(char *filename, uint32_t dataLength, uint32_t dataOffset = 0) {
-        // TODO: move to lazy bitmap for loading..
-        if (m_dataFilename) {
-            free(m_dataFilename);
-        }
-        m_dataFilename = filename ? strdup(filename) : NULL;
-        m_dataLength = dataLength;
-        m_dataOffset = dataOffset;
-    };
-    // for LEDPatternTypeBitmap you must set the bitmap filename. Calling this method loads the bitmap right at that moment.
+    // For LEDPatternTypeImage* and LEDPatternTypeBitmap, you MUST set the filename to read from. Calling this method loads the bitmap right at that moment.
     inline void setBitmapFilename(const char *filename) {
         if (m_lazyBitmap) {
             delete m_lazyBitmap;
@@ -219,6 +198,7 @@ public:
         }
         if (filename != NULL) {
             if (m_lazyBitmap == NULL) {
+//                wait, don't I use the buffers for crossfade? this won't work...
                 m_lazyBitmap = new CDPatternBitmap(filename, getTempBuffer1(), getTempBuffer2(), getBufferSize());
             } else {
                 m_lazyBitmap->moveToStart();

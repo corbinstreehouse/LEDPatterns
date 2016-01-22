@@ -2590,107 +2590,13 @@ void LEDPatterns::randomGradients() {
 }
 
 #if SD_CARD_SUPPORT
-void LEDPatterns::readDataIntoBufferStartingAtPosition(uint32_t position, uint8_t *buffer) {
-    //    DEBUG_PRINTF("buffer load at: %d, of max: %d\r\n", position, imageHeader->dataLength);
-    // Mark where we are in the file (relative)
-    int bufferSize = getBufferSize();
-    
-//    ASSERT(m_dataFilename != NULL);
-    FatFile f = FatFile(m_dataFilename, O_READ);
-    //    if (!f.available()) {
-    //        DEBUG_PRINTLN("  _-----------------------what???");
-    //        delay(1000);
-    //        return;
-    //    }
-    
-    uint32_t filePositionToReadFrom = m_dataOffset + position;
-    //    DEBUG_PRINTLN("  seek");
-    f.seekSet(filePositionToReadFrom);
-    
-    // We can read up to the end based on our current position
-    int amountWeWantToRead = m_dataLength - position;
-    if (amountWeWantToRead <= bufferSize) {
-        // Easy, read all the rest in
-        //        DEBUG_PRINTF("  read %d", amountWeWantToRead);
-        f.read((char*)buffer, amountWeWantToRead);
-    } else {
-        // Read up to the buffer size
-        //        DEBUG_PRINTF("  read full %d", bufferSize);
-        f.read((char*)buffer, bufferSize);
-    }
-    f.close();
-}
 
 #define USE_TWO_BUFFERS 1
 
-void LEDPatterns::initImageDataForHeader() {
-    DEBUG_PRINTLN("------------------------------");
-    DEBUG_PRINTF("playing image with length: %d\r\n", m_dataLength);
-    //    Serial.printf("init image state; header: %x, data:%x, datavalue:%x\r\n", imageHeader, imageState->dataOffset, dataStart(imageHeader));
-    DEBUG_PRINTLN("");
-    
-    m_dataOffsetReadIntoBuffer1 = 0;
-    m_dataOffsetReadIntoBuffer2 = 0;
-    readDataIntoBufferStartingAtPosition(m_dataOffsetReadIntoBuffer1, (uint8_t*)getTempBuffer1());
-    // Fill in the second buffer, if we need to
-#if USE_TWO_BUFFERS
-    int bufferSize = getBufferSize();
-    if (m_dataLength > bufferSize) {
-        m_dataOffsetReadIntoBuffer2 = bufferSize;
-        readDataIntoBufferStartingAtPosition(m_dataOffsetReadIntoBuffer2, (uint8_t*)getTempBuffer2());
-    }
-#endif
-}
-
-uint8_t *LEDPatterns::dataForOffset(uint32_t offset) {
-    // If the offset is within our buffer size, then just return it directly from the buffer
-    int bufferSize = getBufferSize();
-    uint8_t *buffer1 = (uint8_t *)getTempBuffer1();
-    // In the first buffer?
-    if (offset >= m_dataOffsetReadIntoBuffer1 && offset < (m_dataOffsetReadIntoBuffer1 + bufferSize)) {
-        int offsetInBuffer = offset - m_dataOffsetReadIntoBuffer1;
-        return &buffer1[offsetInBuffer];
-    }
-#if USE_TWO_BUFFERS
-    // second buffer?
-    uint8_t *buffer2 = (uint8_t *)getTempBuffer2();
-    if (offset >= m_dataOffsetReadIntoBuffer2 && offset < (m_dataOffsetReadIntoBuffer2 + bufferSize)) {
-        int offsetInBuffer = offset - m_dataOffsetReadIntoBuffer2;
-        return &buffer2[offsetInBuffer];
-    }
-#endif
-    
-    // Nope...have to do more work...reset the buffers
-    m_dataOffsetReadIntoBuffer1 = offset;
-    readDataIntoBufferStartingAtPosition(m_dataOffsetReadIntoBuffer1, buffer1);
-    
-    // read into buffer two also
-#if USE_TWO_BUFFERS
-    m_dataOffsetReadIntoBuffer2 = offset + bufferSize;
-    if (m_dataOffsetReadIntoBuffer2 >= m_dataLength) {
-        m_dataOffsetReadIntoBuffer2 = 0; // Back to the start
-    }
-    readDataIntoBufferStartingAtPosition(m_dataOffsetReadIntoBuffer2, buffer2);
-#endif
-    
-    // now the buffer 1 is full, starting at pos 0, and the second is ready for the next set...
-    return &buffer1[0];
-}
-
-static inline uint32_t keepOffsetInDataBounds(uint32_t offset, uint32_t length) {
-    int amountOver = offset - length;
-    // wrap
-    if (amountOver > 0) {
-        offset = amountOver;
-        if (offset > length) {
-            offset = 0; // way too far..i could mod or something..
-        }
-    }
-    return offset;
-}
-
 
 void LEDPatterns::patternImageEntireStrip() {
+    bitmapPattern(); // For now..
+    /*
     int totalPixelsInImage = m_dataLength / 3; // Assumes RGB encoding, 3 bytes per pixel...this should divide evenly..
     
     if (m_firstTime) {
@@ -2771,14 +2677,13 @@ void LEDPatterns::patternImageEntireStrip() {
         currentOffset += 3;
         nextOffsetForBlending += 3;
     }
+     */
 }
 
 
 void LEDPatterns::linearImageFade() {
-    if (m_firstTime) {
-        initImageDataForHeader();
-    }
-    
+    bitmapPattern(); // For now..
+/*
     uint32_t currentOffset = 0;
     float percentageThrough = 0;
     if (!m_firstTime) {
@@ -2836,6 +2741,7 @@ void LEDPatterns::linearImageFade() {
 #endif
         m_leds[x] = CRGB(r, g, b);
     }
+ */
 }
 
 #endif  // SD_CARD_SUPPORT
