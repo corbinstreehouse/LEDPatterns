@@ -214,12 +214,12 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeDoNothing:
             return true;
 #if SD_CARD_SUPPORT
-        case LEDPatternTypeImageLinearFade:
+        case LEDPatternTypeImageLinearFade_UNUSED:
 #endif
         case LEDPatternTypeWave:
             return false;
 #if SD_CARD_SUPPORT
-        case LEDPatternTypeImageEntireStrip:
+        case LEDPatternTypeImageEntireStrip_UNUSED:
             return true;
 #endif
         case LEDPatternTypeBottomGlow:
@@ -311,11 +311,11 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             break;
         }
 #if SD_CARD_SUPPORT
-        case LEDPatternTypeImageLinearFade: {
+        case LEDPatternTypeImageLinearFade_UNUSED: {
             linearImageFade();
             break;
         }
-        case LEDPatternTypeImageEntireStrip: {
+        case LEDPatternTypeImageEntireStrip_UNUSED: {
             patternImageEntireStrip();
             break;
         }
@@ -548,8 +548,8 @@ bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
         case LEDPatternTypeWave:
         case LEDPatternTypeRotatingBottomGlow:
 #if SD_CARD_SUPPORT
-        case LEDPatternTypeImageLinearFade:
-        case LEDPatternTypeImageEntireStrip:
+        case LEDPatternTypeImageLinearFade_UNUSED:
+        case LEDPatternTypeImageEntireStrip_UNUSED:
 #endif
         case LEDPatternTypeSinWave:
         case LEDPatternTypeCrossfade:

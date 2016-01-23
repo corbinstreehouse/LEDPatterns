@@ -33,9 +33,9 @@ typedef CD_ENUM(int16_t, LEDPatternType) {
     LEDPatternTypePluseGradientEffect,
     LEDPatternTypeRandomGradients,
     
-    // Patterns defined by an image
-    LEDPatternTypeImageLinearFade, // smooth traverse over pixels
-    LEDPatternTypeImageEntireStrip, // one strip piece at a time defined
+    // NOTE: I'm making this a property of the image instead...
+    LEDPatternTypeImageLinearFade_UNUSED, // smooth traverse over pixels
+    LEDPatternTypeImageEntireStrip_UNUSED, // one strip piece at a time defined
     
     // the next set is ordered specifically
     LEDPatternTypeWarmWhiteShimmer,
