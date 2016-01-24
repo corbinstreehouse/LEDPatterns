@@ -183,6 +183,7 @@ void LEDStateInfo::kill() {
 }
 
 // What do I mean by continuous??
+// I mean to reset the percentage back to 0 once it goes past 1.0 IF this returns false. If it returns true, the value will go past 100% continuously forever.
 static inline bool _PatternIsContinuous(LEDPatternType p) {
     switch (p) {
         case LEDPatternTypeRotatingMiniRainbows:
@@ -193,6 +194,9 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeSolidRainbow:
         case LEDPatternTypeRainbowWithSpaces:
         case LEDPatternTypeRandomGradients:
+        case LEDPatternTypeFadeOut: // After 100% the pattern just leaves it black (it doesn't reset to fade again)
+        case LEDPatternTypeFadeIn: // After 100% it just leaves the color up (doesn't do another fade)
+        case LEDPatternTypeFadeInFadeOut:
             return true;
         case LEDPatternTypeWarmWhiteShimmer:
         case LEDPatternTypeRandomColorWalk:
@@ -207,8 +211,6 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
             
         case LEDPatternTypeCollision:
             return false;
-        case LEDPatternTypeFadeOut:
-        case LEDPatternTypeFadeIn:
         case LEDPatternTypeColorWipe:
         case LEDPatternTypeWave:
             return false;
@@ -254,8 +256,7 @@ void LEDPatterns::setPatternType(LEDPatternType type) {
     m_patternType = type;
     m_startTime = millis();
     m_firstTime = true;
-    m_intervalCount = 0;
-    m_lastIntervalCount = 0;
+    m_stateInfoCount = 0;
     m_loopCount = 0;
     m_count = 0;
 
@@ -294,14 +295,32 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             break;
         }
         case LEDPatternTypeFadeOut: {
-            fadeOut();
+            fadeOut(getPercentagePassed());
             break;
         }
         case LEDPatternTypeFadeIn: {
-            fadeIn();
+            fadeIn(getPercentagePassed());
+            break;
+        }
+        case LEDPatternTypeFadeInFadeOut: {
+            float percentagePassed = getPercentagePassed();
+            if (percentagePassed <= 0.5) {
+                float fadeInPercentage = percentagePassed / 0.5;
+                fadeIn(fadeInPercentage);
+            } else {
+                float fadeOutPercentage = (percentagePassed - 0.5) / 0.5;
+                // first fade out marker
+                if (m_stateInfoCount == 0) {
+                    m_firstTime = true;
+                    m_stateInfoCount = 1;
+                    fadeOutPercentage = 0;
+                }
+                fadeOut(fadeOutPercentage);
+            }
             break;
         }
         case LEDPatternTypeDoNothing: {
+            m_needsInternalShow = false; // Doesn't do a show at all..leaves the last pixels shown on..
             break;
         }
         case LEDPatternTypeTheaterChase: {
@@ -537,7 +556,10 @@ bool LEDPatterns::PatternIsContinuous(LEDPatternType p) {
 bool LEDPatterns::PatternDurationShouldBeEqualToSegmentDuration(LEDPatternType p) {
     switch (p) {
         case LEDPatternTypeFadeIn:
+        case LEDPatternTypeFadeInFadeOut:
         case LEDPatternTypeFadeOut:
+        case LEDPatternTypeColorWipe: // maybe??
+        case LEDPatternTypeCrossfade:
             return true;
         default:
             return false;
@@ -565,8 +587,9 @@ bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
         case LEDPatternTypeBitmap:
 #endif
         case LEDPatternTypeSinWave:
-        case LEDPatternTypeCrossfade:
+        case LEDPatternTypeBlink:
             return true;
+        case LEDPatternTypeCrossfade:
         case LEDPatternTypeWarmWhiteShimmer:
         case LEDPatternTypeRandomColorWalk:
         case LEDPatternTypeTraditionalColors:
@@ -579,7 +602,6 @@ bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
         case LEDPatternTypeCollision:
         case LEDPatternTypeDoNothing:
         case LEDPatternTypeBottomGlow:
-        case LEDPatternTypeBlink:
         case LEDPatternTypeSolidColor:
         case LEDPatternTypeFire:
         case LEDPatternTypeBlueFire:
@@ -609,16 +631,17 @@ void LEDPatterns::show() {
     m_timePassed = m_firstTime ? 0 : now - m_startTime;
 
     m_percentagePassedCache = m_firstTime ? 0 : m_duration != 0 ? (float)m_timePassed / (float)m_duration : 0.0;
-    m_intervalCount = floor(m_percentagePassedCache);
+    
+//    NSLog(@"m_percentagePassedCache %g, m_firstTime: %d, m_timePassed: %d, m_duration: %d", m_percentagePassedCache, m_firstTime, m_timePassed, m_duration);
     
     if (!_PatternIsContinuous(m_patternType)) {
-        // Since it isn't continuous, modify the timePassed here
-        if (m_intervalCount > 0) {
-            m_timePassed = m_timePassed - m_intervalCount*m_duration;
-            if (m_intervalCount > m_lastIntervalCount) {
-                m_lastIntervalCount = m_intervalCount;
-                m_firstTime = true;
-            }
+        // Since it isn't continuous,we have to reset the percentage when it goes past 1.0, and we reset it and the time back to 0 to start on the exact same 0 tick
+        if (m_percentagePassedCache > 1.0) {
+            m_firstTime = true;
+            m_percentagePassedCache = 0; // Back to the start
+            m_timePassed = 0;
+            m_startTime = now;
+//            NSLog(@" RESET: m_percentagePassedCache %g, m_firstTime: %d, m_timePassed: %d, m_duration: %d", m_percentagePassedCache, m_firstTime, m_timePassed, m_duration);
         }
     }
 
@@ -810,11 +833,11 @@ void LEDPatterns::randomColorWalk(unsigned char initializeColors, unsigned char 
             m_leds
             [i-2] = c;
         }
-        if (i + 1 < m_ledCount)
+        if (i + 1 < m_ledCount && i >= 1)
         {
             m_leds[i+1] = m_leds[i-1];
         }
-        if (i + 2 < m_ledCount)
+        if (i + 2 < m_ledCount && i >= 2)
         {
             m_leds[i+2] = m_leds[i-2];
         }
@@ -1537,7 +1560,7 @@ void LEDPatterns::wavePatternWithColor(CRGB c, int initialPixel) {
 
 void LEDPatterns::wavePattern() {
     // Reset on 0 time..
-    if (m_timePassed == 0) {
+    if (m_firstTime) {
         m_initialPixel = random(m_ledCount);
         
         float inc = m_ledCount / 4.0;
@@ -1558,7 +1581,7 @@ void LEDPatterns::wavePattern() {
         //        randColor2 = (uint8_t)random(255) << 16 | (uint8_t)random(255) << 8 | (uint8_t)random(255); //        0xFF0000; // red
         //        randColor3 = (uint8_t)random(255) << 16 | (uint8_t)random(255) << 8 | (uint8_t)random(255); //        0xFF0000; // red
         CHSV hsv;
-        if (m_intervalCount > 0) {
+        if (m_stateInfoCount > 0) {
             // replace the original color
             hsv = CHSV(random(HUE_MAX_RAINBOW), 255, 255);
             hsv2rgb_rainbow(hsv, m_patternColor);
@@ -1576,6 +1599,8 @@ void LEDPatterns::wavePattern() {
         } else {
             m_randColor1 = m_randColor2 = m_randColor3 = m_patternColor;
         }
+        // inc the m_stateInfoCount each "first time" to keep track of each reset and reset the color on each "first time"
+        m_stateInfoCount++;
     }
     
     // reset to black
@@ -1647,6 +1672,8 @@ void LEDPatterns::bottomGlow() {
     // Set once, and done. A cheap pattern.
     if (m_firstTime) {
         bottomGlowFromTopPixel(0); // glow from pixel 0..
+    } else {
+        m_needsInternalShow = false;
     }
 }
 
@@ -1696,10 +1723,11 @@ void LEDPatterns::blinkPattern() {
 //    return heatcolor;
 //}
 
-// For 60-hrz based patterns
+// For 60-htz based patterns
 bool LEDPatterns::shouldUpdatePattern() {
     if (m_firstTime) {
         m_timedPattern = millis(); // Use for timing
+        m_needsInternalShow = false; // Avoids work..
         return true;
     } else {
         // Update every 1/60 second
@@ -1754,10 +1782,15 @@ void LEDPatterns::fireColorWithPalette(const CRGBPalette16& pal, int cooling, in
     }
     
     // Step 2.  Heat from each cell drifts 'up' and diffuses a little
-    for( int k= count - 3; k > 0; k--) {
+    for( int k= count - 1; k >= 2; k--) {
         heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
         heat2[k] = (heat2[k - 1] + heat2[k - 2] + heat2[k - 2] ) / 3;
     }
+//    for( int k= NUM_LEDS - 1; k >= 2; k--) {
+//        heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+//    }
+    
+    
     
     // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
     if( random(255) < sparking ) {
@@ -1948,10 +1981,14 @@ void LEDPatterns::flagEffect() {
     
     
     CRGB *pixel = &m_leds[0];
+    int flagTableCount = (sizeof(flagTable)) / sizeof(CRGB);
     for(s=0, i=0; i<m_ledCount; i++) {
-        int x = 256L * ((sizeof(flagTable)) / sizeof(CRGB) - 1) * s / sum;
+        int x = 256L * (flagTableCount - 1) * s / sum;
         int idx1 =  (x >> 8);
         int idx2 = ((x >> 8) + 1);
+        if (idx2 >= flagTableCount) {
+            idx2 = idx1;
+        }
         
         // this mixture is wrong; I'm not sure why, or if it is something I'm doing funky..
         b    = (x & 255) + 1;
@@ -2167,11 +2204,32 @@ void LEDPatterns::bitmapPattern() {
     bool isChasingPattern = m_lazyBitmap->getHeight() == 1;
 //    Serial.printf("m_duration: %d, m_timePassed: %d\r\n", m_duration, m_timePassed);
     // A chasing pattern; duration of 0 is to run as fast as it can
-    if (m_duration == 0 || m_timePassed >= m_duration) {
+    if (m_duration == 0) {
+        // FAST AS we can..
         if (isChasingPattern) {
             m_lazyBitmap->incXOffset();
         } else {
             m_lazyBitmap->incYOffsetBuffers();
+        }
+    } else if (m_timePassed >= m_duration) {
+        // The sim is dropping frames; this simulates it going faster
+        int count = floor(getPercentagePassed());
+        if (count > 1) {
+#ifndef PATTERN_EDITOR
+            DEBUG_PRINTLF("dropping %g frames\r\n", m_intervalCount - 1);
+#endif
+        }
+        // Fixup dropped frames??? (I'm not sure if I want to do this..it might be smoother to NOT do it
+#ifdef PATTERN_EDITOR
+        while (count > 0)
+#endif
+        {
+            if (isChasingPattern) {
+                m_lazyBitmap->incXOffset();
+            } else {
+                m_lazyBitmap->incYOffsetBuffers();
+            }
+            count--;
         }
         m_startTime = millis(); // resets the clock
     } else if (!m_firstTime) {
@@ -2306,14 +2364,16 @@ void LEDPatterns::rotatingBottomGlow() {
     bottomGlowFromTopPixel(topPixel);
 }
 
-void LEDPatterns::fadeIn() {
+void LEDPatterns::fadeIn(float percentagePassed) {
     // slow fade in with:
     // y = x^2, where x == time
-    float t = getPercentagePassed();
-    float y = t*t;
-    
-    for (int i = 0; i < m_ledCount; i++) {
-        fadePixel(i, m_patternColor, y);
+    if (percentagePassed >= 1.0) {
+        fill_solid(m_leds, m_ledCount, m_patternColor);
+    } else {
+        float y = percentagePassed*percentagePassed;
+        for (int i = 0; i < m_ledCount; i++) {
+            fadePixel(i, m_patternColor, y);
+        }
     }
 }
 
@@ -2331,7 +2391,7 @@ CRGB *LEDPatterns::getTempBuffer2() {
     return m_ledTempBuffer2;
 }
 
-void LEDPatterns::fadeOut() {
+void LEDPatterns::fadeOut(float percentagePassed) {
     // Opposite of fade in, and we store the inital value on the first pass
     // y = -x^2 + 1
     CRGB *tempBuffer = getTempBuffer1();
@@ -2340,13 +2400,17 @@ void LEDPatterns::fadeOut() {
         memcpy(tempBuffer, m_leds, getBufferSize());
     }
     
-    float t = getPercentagePassed();
-    float y = -(t*t)+1;
-    for (int i = 0; i < m_ledCount; i++) {
-        // direct pixel access to avoid issues w/reading the already set brightness
-        m_leds[i].green = tempBuffer[i].green*y;
-        m_leds[i].red = tempBuffer[i].red*y;
-        m_leds[i].blue = tempBuffer[i].blue*y;
+    if (percentagePassed >= 1.0) {
+        // All black
+        fill_solid(m_leds, m_ledCount, CRGB::Black);
+    } else {
+        float y = -(percentagePassed*percentagePassed)+1;
+        for (int i = 0; i < m_ledCount; i++) {
+            // direct pixel access to avoid issues w/reading the already set brightness
+            m_leds[i].green = tempBuffer[i].green*y;
+            m_leds[i].red = tempBuffer[i].red*y;
+            m_leds[i].blue = tempBuffer[i].blue*y;
+        }
     }
 }
 

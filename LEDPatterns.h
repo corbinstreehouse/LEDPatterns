@@ -37,8 +37,6 @@ private:
     
     uint32_t m_duration;
     uint32_t m_timePassed;
-    int m_intervalCount;
-    int m_lastIntervalCount;
     
     uint32_t m_timedPattern;
     // Stuff that applies to only certain patterns
@@ -99,8 +97,8 @@ private: // Patterns
     void bottomGlowFromTopPixel(float topPixel);
     void bottomGlow();
     void rotatingBottomGlow();
-    void fadeIn();
-    void fadeOut();
+    void fadeIn(float percentagePassed);
+    void fadeOut(float percentagePassed);
     void solidRainbow(int positionInWheel, int count);
     void rainbows(int count);
     void rainbowWithSpaces(int count);

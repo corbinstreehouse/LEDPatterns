@@ -78,6 +78,8 @@ typedef CD_ENUM(int16_t, LEDPatternType) {
     LEDPatternTypeLavaFire,
     
     LEDPatternTypeBitmap,
+
+    LEDPatternTypeFadeInFadeOut,
     
     LEDPatternTypeMax,
     LEDPatternTypeAllOff = LEDPatternTypeMax,
