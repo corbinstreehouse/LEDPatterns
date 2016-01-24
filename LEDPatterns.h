@@ -31,7 +31,10 @@ private:
     LEDPatternType m_nextPatternType; // For crossfade
     uint32_t m_ledCount;
     
-    bool m_firstTime;
+    uint32_t m_firstTime:1;
+    uint32_t m_needsInternalShow:1;
+    uint32_t m_reserved:30;
+    
     uint32_t m_duration;
     uint32_t m_timePassed;
     int m_intervalCount;
@@ -74,7 +77,11 @@ private:
     inline int getBufferSize() { return sizeof(CRGB) * m_ledCount; }
     CRGB *getTempBuffer1();
     CRGB *getTempBuffer2();
-    inline float getPercentagePassed() { return (float)m_timePassed / (float)m_duration; };
+    
+    float m_percentagePassedCache;
+    inline float getPercentagePassed() {
+        return m_percentagePassedCache;
+    };
 
     // TODO: corbin, use the other methods for fade to black as this is probably slow (but seems fast on a teensy)
     inline void fadePixel(int i, CRGB color, float amount) {
@@ -170,6 +177,7 @@ public:
     // a given pattern does NOT need a duration set if it is continuous
     static bool PatternIsContinuous(LEDPatternType p);
     static bool PatternNeedsDuration(LEDPatternType p);
+    static bool PatternDurationShouldBeEqualToSegmentDuration(LEDPatternType p);
 
 
     // Call begin before doing anything

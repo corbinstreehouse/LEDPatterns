@@ -34,7 +34,7 @@ typedef CD_ENUM(int16_t, LEDPatternType) {
     LEDPatternTypeRandomGradients,
     
     // NOTE: I'm making this a property of the image instead...
-    LEDPatternTypeImageLinearFade_UNUSED, // smooth traverse over pixels
+    LEDPatternTypeImageReferencedBitmap, // smooth traverse over pixels
     LEDPatternTypeImageEntireStrip_UNUSED, // one strip piece at a time defined
     
     // the next set is ordered specifically

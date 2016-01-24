@@ -182,7 +182,7 @@ void LEDStateInfo::kill() {
     m_death = micros();
 }
 
-
+// What do I mean by continuous??
 static inline bool _PatternIsContinuous(LEDPatternType p) {
     switch (p) {
         case LEDPatternTypeRotatingMiniRainbows:
@@ -204,21 +204,19 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeRedGreenBrightTwinkle:
         case LEDPatternTypeColorTwinkle:
             return false; // i think
+            
         case LEDPatternTypeCollision:
             return false;
         case LEDPatternTypeFadeOut:
         case LEDPatternTypeFadeIn:
         case LEDPatternTypeColorWipe:
+        case LEDPatternTypeWave:
             return false;
             
         case LEDPatternTypeDoNothing:
             return true;
 #if SD_CARD_SUPPORT
-        case LEDPatternTypeImageLinearFade_UNUSED:
-#endif
-        case LEDPatternTypeWave:
-            return false;
-#if SD_CARD_SUPPORT
+        case LEDPatternTypeImageReferencedBitmap:
         case LEDPatternTypeImageEntireStrip_UNUSED:
             return true;
 #endif
@@ -311,7 +309,7 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             break;
         }
 #if SD_CARD_SUPPORT
-        case LEDPatternTypeImageLinearFade_UNUSED: {
+        case LEDPatternTypeImageReferencedBitmap: {
             linearImageFade();
             break;
         }
@@ -402,8 +400,11 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             rotatingBottomGlow();
             break;
         case LEDPatternTypeSolidColor: {
-#warning corbin! don't call this multiple times...unless we want it to change
-            fill_solid(m_leds, m_ledCount, m_patternColor);
+            if (m_firstTime) {
+                fill_solid(m_leds, m_ledCount, m_patternColor);
+            } else {
+                m_needsInternalShow = false; // Once set we don't need to do it again
+            }
             break;
         }
         case LEDPatternTypeSolidRainbow: {
@@ -424,9 +425,10 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             //
             //            break;
 #warning corbin! don't call this multiple times...unless we want it to change
-            //            if (isFirstPass || itemHeader->shouldSetBrightnessByRotationalVelocity)
-            {
+            if (m_firstTime) {
                 solidRainbow(0, 1);
+            } else {
+                m_needsInternalShow = false; // Once set we don't need to do it again
             }
             break;
         }
@@ -532,6 +534,16 @@ bool LEDPatterns::PatternIsContinuous(LEDPatternType p) {
     return _PatternIsContinuous(p);
 }
 
+bool LEDPatterns::PatternDurationShouldBeEqualToSegmentDuration(LEDPatternType p) {
+    switch (p) {
+        case LEDPatternTypeFadeIn:
+        case LEDPatternTypeFadeOut:
+            return true;
+        default:
+            return false;
+    }
+}
+
 bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
     switch (p) {
         case LEDPatternTypeRotatingMiniRainbows:
@@ -548,8 +560,9 @@ bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
         case LEDPatternTypeWave:
         case LEDPatternTypeRotatingBottomGlow:
 #if SD_CARD_SUPPORT
-        case LEDPatternTypeImageLinearFade_UNUSED:
+        case LEDPatternTypeImageReferencedBitmap:
         case LEDPatternTypeImageEntireStrip_UNUSED:
+        case LEDPatternTypeBitmap:
 #endif
         case LEDPatternTypeSinWave:
         case LEDPatternTypeCrossfade:
@@ -595,7 +608,8 @@ void LEDPatterns::show() {
     }
     m_timePassed = m_firstTime ? 0 : now - m_startTime;
 
-    m_intervalCount = m_duration ? m_timePassed / m_duration : 0;
+    m_percentagePassedCache = m_firstTime ? 0 : m_duration != 0 ? (float)m_timePassed / (float)m_duration : 0.0;
+    m_intervalCount = floor(m_percentagePassedCache);
     
     if (!_PatternIsContinuous(m_patternType)) {
         // Since it isn't continuous, modify the timePassed here
@@ -608,9 +622,12 @@ void LEDPatterns::show() {
         }
     }
 
+    m_needsInternalShow = true;
     updateLEDsForPatternType(m_patternType);
-
-    internalShow();
+    // Some patterns may not need to do any more show work after doing it once.
+    if (m_needsInternalShow) {
+        internalShow();
+    }
     // no longer the first time
     m_firstTime = false;
 }
@@ -2323,7 +2340,7 @@ void LEDPatterns::fadeOut() {
         memcpy(tempBuffer, m_leds, getBufferSize());
     }
     
-    float t = (float)m_timePassed / (float)m_duration;
+    float t = getPercentagePassed();
     float y = -(t*t)+1;
     for (int i = 0; i < m_ledCount; i++) {
         // direct pixel access to avoid issues w/reading the already set brightness
