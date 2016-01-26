@@ -227,7 +227,7 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeRotatingBottomGlow:
         case LEDPatternTypeSolidColor:
             return false; // repeats after a rotation
-        case LEDPatternTypeMax:
+        case LEDPatternTypeCount:
         case LEDPatternTypeBlink:
             return false;
         case LEDPatternTypeFire:
@@ -478,13 +478,6 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
         }
         case LEDPatternTypeRainbowFire: {
             fireColorWithPalette(PartyColors_p, 40, 220);
-            break;
-        }
-            
-        case LEDPatternTypeAllOff: {
-#if DEBUG
-            //showOn();
-#endif
             break;
         }
         case LEDPatternFlagEffect: {
