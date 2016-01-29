@@ -9,7 +9,14 @@
 #ifndef __LED_PATTERN_TYPE_H
 #define __LED_PATTERN_TYPE_H
 
-// NOTE: update g_patternTypeNames when this changes!!
+// Make this more portable with ARM compilers
+#ifndef __has_feature
+#define __has_feature(a) 0
+#endif
+
+#ifndef __has_extension
+#define __has_extension(a) 0
+#endif
 
 #if (__cplusplus && __cplusplus >= 201103L && (__has_extension(cxx_strong_enums) || __has_feature(objc_fixed_enum))) || (!__cplusplus && __has_feature(objc_fixed_enum))
     #define CD_ENUM(_type, _name)     enum _name : _type _name; enum _name : _type
@@ -17,7 +24,8 @@
     #define CD_ENUM(_type, _name)     enum _name : _type
 #endif
 
-typedef CD_ENUM(int16_t, LEDPatternType) {
+// NOTE: update g_patternTypeNames when this changes!!
+typedef CD_ENUM(int32_t, LEDPatternType) {
     LEDPatternTypeMin = 0,
     
     LEDPatternTypeRotatingRainbow = 0,
