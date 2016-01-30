@@ -120,7 +120,7 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL) {
     }
     
     if (m_bInfo.biBitCount <= 8) {
-        DEBUG_PRINTF("reading palette: %s\r\n", filename);
+//        DEBUG_PRINTF("reading palette: %s\r\n", filename);
         uint32_t paletteSize = m_bInfo.biClrUsed;
         if (paletteSize == 0) {
             paletteSize = 1 << m_bInfo.biBitCount; // 2^depth
