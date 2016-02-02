@@ -16,11 +16,6 @@
 #define SD_CARD_SUPPORT 1
 
 #include "LEDPatternType.h"
-
-//#include "led_sysdefs.h"
-//#include "pixeltypes.h"
-//#include "colorutils.h"
-
 #include "CDLazyBitmap.h"
 
 
