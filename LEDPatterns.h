@@ -146,7 +146,6 @@ private: // Patterns
 protected:
     CRGB *m_leds;
     inline void setPixelColor(int pixel, CRGB color) { m_leds[pixel] = color; };
-    virtual void internalShow() = 0;
     inline uint32_t getLEDCount() { return m_ledCount; };
 public:
     
@@ -214,6 +213,8 @@ public:
     // Abstract control over the overall LED options. Not all subclasses support all options.
     // 0 = off, 255 = on. Depends on the subclass for implementation
     virtual void setBrightness(uint8_t brightness) = 0;
+    
+    virtual void internalShow() = 0; // only updates the LEDs with current state; mainly for subclassing
     
     // Call show to make the update take
     void show();
