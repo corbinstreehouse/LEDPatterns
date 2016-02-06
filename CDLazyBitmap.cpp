@@ -206,7 +206,7 @@ void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
                 x++;
                 linePtr += 2;
             } else if (m_bInfo.biBitCount == 24) {
-                uint32_t Color = *((uint32_t*) linePtr);
+                uint32_t Color = *((uint32_t*) linePtr); // This trips up the address sanitizer because we are accessing 4 bytes, when there may only be 3, even with 4 byte alined data. Consider: width=12, 12*3=36. 36 is already 4 byte aligned (9 uint's go into it), but the last one trips this up. It is safe, unless we access the last byte of linePtr..but it is ugly the way this is done.
                 buffer[x].blue = Color & 0xff;
                 buffer[x].green = (Color >> 8) & 0xff;
                 buffer[x].red = (Color >> 16) & 0xff;
