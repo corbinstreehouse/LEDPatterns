@@ -20,8 +20,10 @@
 
 #if __has_extension(cxx_strong_enums) || __has_feature(objc_fixed_enum)
     #define CD_ENUM(_type, _name)     enum _name : _type _name; enum _name : _type
+    #define CD_OPTIONS(_type, _name) _type _name; enum : _type
 #else
     #define CD_ENUM(_type, _name)     enum _name : _type
+    #define CD_OPTIONS(_type, _name) _type _name; enum : _type
 #endif
 
 // NOTE: update g_patternTypeNames when this changes!!
