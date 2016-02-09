@@ -120,6 +120,8 @@ private: // Patterns
     void bitmapPattern();
     
     void bitmapPatternFillPixels();
+    void bitmapPatternStretchInterpolFillPixels();
+    void bitmapPatternStretchFillPixels();
     void bitmapPatternInterpolatePixels(float percentage, bool isChasingPattern);
     
     // Fades smoothly to the next pattern from the current data shown over the duration of the pattern
@@ -149,7 +151,7 @@ protected:
     inline uint32_t getLEDCount() { return m_ledCount; };
 public:
     
-    LEDPatterns(uint32_t ledCount) : m_ledCount(ledCount), m_duration(1000), m_pauseTime(0) {
+    LEDPatterns(uint32_t ledCount) : m_ledCount(ledCount), m_duration(1000), m_pauseTime(0), m_needsInternalShow(true), m_firstTime(true) {
         int byteCount = sizeof(CRGB) * ledCount;
         m_leds = (CRGB *)malloc(byteCount);
         bzero(m_leds, byteCount);
@@ -170,7 +172,6 @@ public:
     static bool PatternIsContinuous(LEDPatternType p);
     static bool PatternNeedsDuration(LEDPatternType p);
     static bool PatternDurationShouldBeEqualToSegmentDuration(LEDPatternType p);
-
 
     // Call begin before doing anything
     virtual void begin() = 0;

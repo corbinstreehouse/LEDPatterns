@@ -96,14 +96,14 @@ typedef CD_ENUM(int32_t, LEDPatternType) {
     
     
 typedef struct __attribute__((__packed__)) LEDBitmapPatternOptions {
-    uint32_t shouldInterpolate:1;
-    uint32_t stretchToFill:1; // corbin -- would be cool to implement!
+    uint32_t shouldInterpolate:1; // not set anywhere..
+    uint32_t shouldStrechBitmap:1;
     uint32_t reserved:30;
     
 #ifdef __cplusplus
-    inline LEDBitmapPatternOptions(bool shouldInterpolate, bool stretchToFill) {
+    inline LEDBitmapPatternOptions(bool shouldInterpolate, bool shouldStrechBitmap) {
         this->shouldInterpolate = shouldInterpolate;
-        this->stretchToFill = stretchToFill;
+        this->shouldStrechBitmap = shouldStrechBitmap;
     }
 #endif
     
@@ -112,6 +112,7 @@ typedef struct __attribute__((__packed__)) LEDBitmapPatternOptions {
 
 // options that only apply to particular patterns, so I combine them all together. i could put the patternColor here as it only applies to certain patterns.
 // warning: keep at 32-bits for now! Or I have to expand the header
+    // NOTE: I'm going to drop using these, as they come across poorly in swift. I'll just use the main bitset for each option...and maybe put some specific extra data in here..
 typedef struct __attribute__((__packed__)) LEDPatternOptions {
     union {
         LEDBitmapPatternOptions bitmapOptions;

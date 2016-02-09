@@ -4,7 +4,8 @@
 
 // http://www.dragonwins.com/domains/getteched/bmp/bmpfileformat.htm
 
-#define DEBUG 1
+#undef DEBUG
+#define DEBUG 0
 
 #if DEBUG
 #warning "DEBUG CODE IS ON!!!! CDLazyBitmap.h"
@@ -16,9 +17,9 @@
 #endif
 
 #if DEBUG
-#define CLOSE_AND_RETURN(error) {/* DumpFile(&file); */m_file.close(); Serial.println(error); return; }
+    #define CLOSE_AND_RETURN(error) {/* DumpFile(&file); */m_file.close(); Serial.println(error); return; }
 #else
-#define CLOSE_AND_RETURN(error) { file.close(); return; }
+    #define CLOSE_AND_RETURN(error) { m_file.close(); return; }
 #endif
 
 #if defined(__MK20DX128__) || defined(__MK20DX256__)

@@ -16,7 +16,7 @@
     #include "SdFat.h"
 #endif
 
-#if DEBUG
+#if 1 // DEBUG
     #define DEBUG_PRINTLN(a) Serial.println(a)
     #define DEBUG_PRINTF(a, ...) Serial.printf(a, ##__VA_ARGS__)
 #else
@@ -2154,6 +2154,87 @@ void LEDPatterns::bitmapPatternFillPixels() {
     ASSERT(x == m_ledCount);
 }
 
+void LEDPatterns::bitmapPatternStretchFillPixels() {
+    // nearest neighbor, blocky-scaling
+    uint32_t imageWidth = m_lazyBitmap->getWidth();
+    const CRGB *imageLineData = m_lazyBitmap->getFirstBuffer();
+    
+    int wholeCopies = m_ledCount / imageWidth;
+    int pixelsLeftOver = m_ledCount - (wholeCopies * imageWidth);
+    int xOffset = 0;
+    int i = 0;
+    while (i < m_ledCount) {
+        if (xOffset >= imageWidth) {
+            // shouldn't hit this..it means we wrapped!
+            DEBUG_PRINTLN("ERROR wrap 1");
+            xOffset = 0;
+        }
+        // Repeat it for however many times we are stretching
+        for (int j = 0; j < wholeCopies; j++) {
+            if (i == m_ledCount) {
+                DEBUG_PRINTLN("ERROR 2");
+                break;// shouldn't hit this....
+            }
+            m_leds[i++] = imageLineData[xOffset];
+        }
+        if (i == m_ledCount && pixelsLeftOver > 0) {
+            DEBUG_PRINTLN("ERROR 3");
+            break;// shouldn't hit this....
+        }
+        // distribute the left over at the start; one pixel each before incrementing the x
+        if (pixelsLeftOver > 0) {
+            pixelsLeftOver--;
+            m_leds[i++] = imageLineData[xOffset];
+        }
+        xOffset++;
+    }
+    
+}
+
+void LEDPatterns::bitmapPatternStretchInterpolFillPixels() {
+    // nearest neighbor, blocky-scaling
+    uint32_t imageWidth = m_lazyBitmap->getWidth();
+    const CRGB *imageLineData = m_lazyBitmap->getFirstBuffer();
+    
+    int wholeCopies = m_ledCount / imageWidth;
+    int pixelsLeftOver = m_ledCount - (wholeCopies * imageWidth);
+    int xOffset = 0;
+    int i = 0;
+    while (i < m_ledCount) {
+        if (xOffset >= imageWidth) {
+            // shouldn't hit this..it means we wrapped!
+            DEBUG_PRINTLN("ERROR wrap 1");
+            xOffset = 0;
+        }
+        
+        CRGB first = imageLineData[xOffset];
+        CRGB second = imageLineData[xOffset < (imageWidth-1) ? xOffset + 1 : 0];
+        
+        int thisCount = wholeCopies;
+        if (pixelsLeftOver > 0) {
+            pixelsLeftOver--;
+            thisCount++;
+        }
+        
+        // Repeat it for however many times we are stretching
+        for (int j = 0; j < thisCount; j++) {
+            if (i == m_ledCount) {
+                DEBUG_PRINTLN("ERROR 2");
+                break;// shouldn't hit this....
+            }
+            float percentage = (float)j / (float)thisCount;
+            m_leds[i].r = first.r + round(percentage * (float)(second.r - first.r));
+            m_leds[i].g = first.g + round(percentage * (float)(second.g - first.g));
+            m_leds[i].b = first.b + round(percentage * (float)(second.b - first.b));
+            
+            i++;
+        }
+
+        xOffset++;
+    }
+    
+}
+
 void LEDPatterns::bitmapPatternInterpolatePixels(float percentage, bool isChasingPattern) {
     uint32_t imageWidth = m_lazyBitmap->getWidth();
     CRGB *firstRow = m_lazyBitmap->getFirstBuffer();
@@ -2229,7 +2310,13 @@ void LEDPatterns::bitmapPattern() {
         percentageThrough = getPercentagePassed();
     }
 
-    if (m_patternOptions.bitmapOptions.shouldInterpolate && percentageThrough > 0) {
+    if (!isChasingPattern && m_patternOptions.bitmapOptions.shouldStrechBitmap && m_lazyBitmap->getWidth() < m_ledCount) {
+        if (m_patternOptions.bitmapOptions.shouldInterpolate) {
+            bitmapPatternStretchInterpolFillPixels();
+        } else {
+            bitmapPatternStretchFillPixels();
+        }
+    } else if (m_patternOptions.bitmapOptions.shouldInterpolate && percentageThrough > 0) {
         bitmapPatternInterpolatePixels(percentageThrough, isChasingPattern);
     } else {
         bitmapPatternFillPixels();
