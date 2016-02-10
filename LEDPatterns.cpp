@@ -2200,37 +2200,91 @@ void LEDPatterns::bitmapPatternStretchInterpolFillPixels() {
     int pixelsLeftOver = m_ledCount - (wholeCopies * imageWidth);
     int xOffset = 0;
     int i = 0;
-    while (i < m_ledCount) {
-        if (xOffset >= imageWidth) {
-            // shouldn't hit this..it means we wrapped!
-            DEBUG_PRINTLN("ERROR wrap 1");
-            xOffset = 0;
-        }
-        
-        CRGB first = imageLineData[xOffset];
-        CRGB second = imageLineData[xOffset < (imageWidth-1) ? xOffset + 1 : 0];
-        
-        int thisCount = wholeCopies;
-        if (pixelsLeftOver > 0) {
-            pixelsLeftOver--;
-            thisCount++;
-        }
-        
-        // Repeat it for however many times we are stretching
-        for (int j = 0; j < thisCount; j++) {
-            if (i == m_ledCount) {
-                DEBUG_PRINTLN("ERROR 2");
-                break;// shouldn't hit this....
+    
+    // TODO: test the FPS of this
+    bool doDoubleBlending = true;
+    if (doDoubleBlending) {
+        float p = getPercentagePassed();
+        fract16 lerpV = p > 0 && p < 1.0 ? p * UINT16_MAX : 0;
+        const CRGB *nextLineData = m_lazyBitmap->getSecondBuffer();
+        while (i < m_ledCount) {
+            if (xOffset >= imageWidth) {
+                xOffset = 0;
             }
-            float percentage = (float)j / (float)thisCount;
-            m_leds[i].r = first.r + round(percentage * (float)(second.r - first.r));
-            m_leds[i].g = first.g + round(percentage * (float)(second.g - first.g));
-            m_leds[i].b = first.b + round(percentage * (float)(second.b - first.b));
+            int nextOffset = xOffset < (imageWidth-1) ? xOffset + 1 : 0;
             
-            i++;
+            CRGB first = imageLineData[xOffset];
+            CRGB second = imageLineData[nextOffset];
+
+            // Blend these two together first
+            if (lerpV != 0) {
+                CRGB first2 = nextLineData[xOffset];
+                first = first.lerp16(first2, lerpV);
+                CRGB second2 = nextLineData[nextOffset];
+                second = second.lerp16(second2, lerpV);
+            }
+            
+            int thisCount = wholeCopies;
+            if (pixelsLeftOver > 0) {
+                pixelsLeftOver--;
+                thisCount++;
+            }
+            
+            // Repeat it for however many times we are stretching
+            int nextMax = thisCount + 1;
+            for (int j = 0; j < thisCount; j++) {
+                if (i == m_ledCount) {
+                    DEBUG_PRINTLN("ERROR 2");
+                    break;// shouldn't hit this....
+                }
+                if (i == 0) {
+                    m_leds[i] = first;
+                } else {
+                    // going up to, but not including the next
+                    float percentage = (float)j / (float)nextMax;
+                    fract16 blendLerpV = percentage * UINT16_MAX;
+                    m_leds[i] = first.lerp16(second, blendLerpV);
+                }
+                
+                i++;
+            }
+            
+            xOffset++;
         }
 
-        xOffset++;
+
+    } else {
+        while (i < m_ledCount) {
+            if (xOffset >= imageWidth) {
+                xOffset = 0;
+            }
+            
+            CRGB first = imageLineData[xOffset];
+            CRGB second = imageLineData[xOffset < (imageWidth-1) ? xOffset + 1 : 0];
+
+            
+            int thisCount = wholeCopies;
+            if (pixelsLeftOver > 0) {
+                pixelsLeftOver--;
+                thisCount++;
+            }
+            
+            // Repeat it for however many times we are stretching
+            for (int j = 0; j < thisCount; j++) {
+                if (i == m_ledCount) {
+                    DEBUG_PRINTLN("ERROR 2");
+                    break;// shouldn't hit this....
+                }
+                float percentage = (float)j / (float)thisCount;
+                m_leds[i].r = first.r + round(percentage * (float)(second.r - first.r));
+                m_leds[i].g = first.g + round(percentage * (float)(second.g - first.g));
+                m_leds[i].b = first.b + round(percentage * (float)(second.b - first.b));
+                
+                i++;
+            }
+
+            xOffset++;
+        }
     }
     
 }
