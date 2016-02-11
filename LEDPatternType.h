@@ -96,14 +96,16 @@ typedef CD_ENUM(int32_t, LEDPatternType) {
     
     
 typedef struct __attribute__((__packed__)) LEDBitmapPatternOptions {
-    uint32_t shouldInterpolate:1; // not set anywhere..
+    uint32_t shouldInterpolateStretchedPixels:1;
     uint32_t shouldStrechBitmap:1;
-    uint32_t reserved:30;
+    uint32_t shouldInterpolateToNextRow:1;
+    uint32_t reserved:29;
     
 #ifdef __cplusplus
-    inline LEDBitmapPatternOptions(bool shouldInterpolate, bool shouldStrechBitmap) {
-        this->shouldInterpolate = shouldInterpolate;
+    inline LEDBitmapPatternOptions(bool shouldInterpolateStretchedPixels, bool shouldStrechBitmap, bool shouldInterpolateToNextRow) {
+        this->shouldInterpolateStretchedPixels = shouldInterpolateStretchedPixels;
         this->shouldStrechBitmap = shouldStrechBitmap;
+        this->shouldInterpolateToNextRow = shouldInterpolateToNextRow;
     }
 #endif
     

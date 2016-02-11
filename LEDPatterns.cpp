@@ -2297,7 +2297,7 @@ void LEDPatterns::bitmapPatternInterpolatePixels(float percentage, bool isChasin
     
     int xOffset = m_lazyBitmap->getXOffset();
     if (isChasingPattern) {
-        fract16 fraction = round(percentage*65536); // yeah, hardcoded..oh well, 2^16
+        fract16 fraction = round(percentage*UINT16_MAX);
         for (int i = 0; i < m_ledCount; i++) {
             int firstOffset = xOffset;
             xOffset++;
@@ -2307,16 +2307,23 @@ void LEDPatterns::bitmapPatternInterpolatePixels(float percentage, bool isChasin
             m_leds[i] = firstRow[firstOffset].lerp16(firstRow[xOffset], fraction);
         }
     } else {
+        float percentage = getPercentagePassed();
+        if (percentage > 1.0) {
+            // wack off past 1.0
+            int intpart = (int)percentage;
+            percentage -= intpart;
+        }
+        
+        fract16 lerpV = percentage * UINT16_MAX;
+        
         CRGB *secondRow = m_lazyBitmap->getSecondBuffer();
         for (int i = 0; i < m_ledCount; i++) {
 //            m_leds[i] = firstRow[xOffset].lerp16(secondRow[xOffset], fraction);
 // ^ fast! but not what i wanted...
             CRGB first = firstRow[xOffset];
             CRGB second = secondRow[xOffset];
-            m_leds[i].r = first.r + round(percentage * (float)(second.r - first.r));
-            m_leds[i].g = first.g + round(percentage * (float)(second.g - first.g));
-            m_leds[i].b = first.b + round(percentage * (float)(second.b - first.b));
-            
+            m_leds[i] = first.lerp16(second, lerpV);
+//^ better?
             xOffset++;
             if (xOffset >= imageWidth) {
                 xOffset = 0;
@@ -2365,12 +2372,12 @@ void LEDPatterns::bitmapPattern() {
     }
 
     if (!isChasingPattern && m_patternOptions.bitmapOptions.shouldStrechBitmap && m_lazyBitmap->getWidth() < m_ledCount) {
-        if (m_patternOptions.bitmapOptions.shouldInterpolate) {
+        if (m_patternOptions.bitmapOptions.shouldInterpolateStretchedPixels) {
             bitmapPatternStretchInterpolFillPixels();
         } else {
             bitmapPatternStretchFillPixels();
         }
-    } else if (m_patternOptions.bitmapOptions.shouldInterpolate && percentageThrough > 0) {
+    } else if (m_patternOptions.bitmapOptions.shouldInterpolateToNextRow && percentageThrough > 0) {
         bitmapPatternInterpolatePixels(percentageThrough, isChasingPattern);
     } else {
         bitmapPatternFillPixels();
