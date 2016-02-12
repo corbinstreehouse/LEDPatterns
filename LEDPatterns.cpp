@@ -2348,12 +2348,15 @@ void LEDPatterns::bitmapPattern() {
         }
     } else if (m_timePassed >= m_duration) {
         // The sim is dropping frames; this simulates it going faster
+#if DEBUG || PATTERN_EDITOR
         int count = floor(getPercentagePassed());
-        if (count > 1) {
-#ifndef PATTERN_EDITOR
-            DEBUG_PRINTF("dropping %d frames\r\n", count - 1);
 #endif
+#ifndef PATTERN_EDITOR
+        if (count > 2) {
+            // count might be 1 via 1.02%
+            DEBUG_PRINTF("dropping %d frames???\r\n", count - 1);
         }
+#endif
         // Fixup dropped frames??? (I'm not sure if I want to do this..it might be smoother to NOT do it
 #ifdef PATTERN_EDITOR
         while (count > 0)
@@ -2364,7 +2367,9 @@ void LEDPatterns::bitmapPattern() {
             } else {
                 m_lazyBitmap->incYOffsetBuffers();
             }
+#ifdef PATTERN_EDITOR
             count--;
+#endif
         }
         m_startTime = millis(); // resets the clock
     } else if (!m_firstTime) {

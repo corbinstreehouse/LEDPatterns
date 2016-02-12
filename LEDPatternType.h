@@ -9,6 +9,8 @@
 #ifndef __LED_PATTERN_TYPE_H
 #define __LED_PATTERN_TYPE_H
 
+#include <stdint.h>
+
 // Make this more portable with ARM compilers
 #ifndef __has_feature
 #define __has_feature(a) 0
