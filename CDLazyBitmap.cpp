@@ -5,7 +5,7 @@
 // http://www.dragonwins.com/domains/getteched/bmp/bmpfileformat.htm
 
 #undef DEBUG
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG
 #warning "DEBUG CODE IS ON!!!! CDLazyBitmap.h"
@@ -142,6 +142,15 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL) {
     m_isValid = true;
 }
 
+uint8_t *CDLazyBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned) {
+    uint8_t *lineBuffer = (uint8_t *)malloc(size);
+    uint32_t lineOffset = m_dataOffset + dataOffset;
+    m_file.seekSet(lineOffset);
+    m_file.read((char*)lineBuffer, size);
+    *owned = true;
+    return lineBuffer;
+}
+
 void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
     if (y >= getHeight() || y < 0) {
         DEBUG_PRINTLN("bad y offset requested");
@@ -152,14 +161,12 @@ void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
         uint32_t width = getWidth();
         // 4 byte aligned rows
         unsigned int lineWidth = ((width * m_bInfo.biBitCount / 8) + 3) & ~3;
-        uint8_t *lineBuffer = (uint8_t *)malloc(sizeof(uint8_t) * lineWidth);
 
         int x = 0;
-        // Seek to that line that was requested
-        uint32_t lineOffset = m_dataOffset + y * lineWidth;
-        m_file.seekSet(lineOffset);
-
-        m_file.read((char*)lineBuffer, lineWidth);
+        bool owned = false;
+        size_t size = sizeof(uint8_t) * lineWidth;
+        uint32_t offset = y *lineWidth;
+        uint8_t *lineBuffer = getLineBufferAtOffset(size, offset, &owned);
         
         uint8_t *linePtr = lineBuffer;
         for (unsigned int j = 0; j < width; j++) {
@@ -224,7 +231,9 @@ void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
                 linePtr += 4;
             }
         }
-        free(lineBuffer);
+        if (owned) {
+            free(lineBuffer);
+        }
 
     } else if (m_bInfo.biCompression == 1) { // RLE 8
 #if 0
@@ -339,6 +348,7 @@ CDLazyBitmap::~CDLazyBitmap() {
 
 
 
+// TODO: I see about 50k free (even with this 10k consumeed), so I might up this to 20 or even 30k to keep in memory.
 #define MAX_SIZE_SINGLE_BUFFER (10*1024) // 10kB
 
 // Allocate the memory once for the patterns since we can share it; if we are in the sim, we may have multiple instances
@@ -347,7 +357,7 @@ static CRGB *g_sharedBuffer = NULL; // always NULL for the pattern editor
 #ifdef PATTERN_EDITOR
 
 static uint32_t FreeRam() {
-    return MAX_SIZE_SINGLE_BUFFER + 1; // Doesn't matter
+    return MAX_SIZE_SINGLE_BUFFER + 1025; // Doesn't matter
 }
 
 #else
@@ -382,16 +392,28 @@ static inline CRGB *getSharedBuffer() {
             // NOTE: I could probably get another 2KB! by using the other buffers passed in (if non NULL)
             // Save it if we aren't the pattern editor
 #ifndef PATTERN_EDITOR
-            // Save it only for the pattern editor
+            // Save it only cached but NOT for the pattern editor... so we create it each time and own it
             g_sharedBuffer = result;
 #endif
+        } else {
+            DEBUG_PRINTF("not enough free ram!: %d\r\n", freeRam);
         }
     }
     return result;
-
 }
 
-CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize) : CDLazyBitmap(filename), m_xOffset(0), m_yOffset(-1), m_buffer(NULL), m_bufferOwned(false), m_buffer1Owned(false)  {
+
+uint8_t *CDPatternBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned) {
+    if (m_fileIsInBuffer) {
+        uint8_t *result = (uint8_t *)m_buffer;
+        *owned = false;
+        return &result[dataOffset];
+    } else {
+        return CDLazyBitmap::getLineBufferAtOffset(size, dataOffset, owned);
+    }
+}
+
+CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize) : CDLazyBitmap(filename), m_xOffset(0), m_yOffset(-1), m_buffer(NULL), m_bufferOwned(false), m_buffer1Owned(false), m_fileIsInBuffer(false)  {
     
     // Allocate an internal buffer if the passed in ones aren't large enough
     
@@ -402,13 +424,42 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
         // Try to allocate one big buffer to hold it all in RAM; up to 10kB
         if (totalMemoryNeeded <= MAX_SIZE_SINGLE_BUFFER) {
             m_buffer = getSharedBuffer();
+#if DEBUG
+            if (m_buffer) {
+                Serial.println("using shared buffer");
+            } else {
+                Serial.println("error: NO shared buffer?? using shared buffer");
+                
+            }
+#endif
+            
 #ifdef PATTERN_EDITOR
             m_bufferOwned = true; // Else we own it and free it..
 #endif
+        } else {
+            DEBUG_PRINTF("too large for a shared buffer UNCOMPRESSED??, freeRam: %d\r\n", FreeRam());
+            // See if we can fit the data in the shared buffer so we don't load from the SD card a bunch
+            uint32_t restDataSize = m_file.fileSize() - m_dataOffset;
+            if (restDataSize < MAX_SIZE_SINGLE_BUFFER) {
+                m_buffer = getSharedBuffer();
+                if (m_buffer) {
+                    DEBUG_PRINTLN("... BUT loading all the image data into the shared buffer");
+                    m_file.seekSet(m_dataOffset);
+                    // suck it in
+                    m_file.read((char*)m_buffer, restDataSize);
+                    m_file.close();
+                    // The mark that we did this..
+                    m_fileIsInBuffer = true;
+                
+#ifdef PATTERN_EDITOR
+                    m_bufferOwned = true; // Else we own it and free it..
+#endif
+                }
+            }
         }
         
         // If we could allocate it, then fill it up!
-        if (m_buffer != NULL) {
+        if (m_buffer != NULL && !m_fileIsInBuffer) {
             CRGB *offset = m_buffer;
             for (int y = 0; y < getHeight(); y++ ) {
                 fillRGBBufferFromYOffset(offset, y);
@@ -422,8 +473,8 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
                 m_buffer2 = buffer2;
                 m_buffer1Owned = false;
             } else {
-                // Try the shared buffer for a single line
-                m_buffer1 = getSharedBuffer();
+                // Try the shared buffer for a single line, if not used already
+                m_buffer1 = !m_fileIsInBuffer ? getSharedBuffer() : NULL;
                 if (m_buffer1) {
 #ifdef PATTERN_EDITOR
                     m_buffer1Owned = true; // It was allocated in this case
@@ -479,7 +530,7 @@ void CDPatternBitmap::incYOffsetBuffers() {
     
     size_t width = getWidth();
     // If we loaded everything (non NULL buffer), then we can just compute the offset
-    if (m_buffer != NULL) {
+    if (m_buffer != NULL && !m_fileIsInBuffer) {
         m_buffer1 = m_buffer + (m_yOffset * width);
         m_buffer2 = m_buffer + (secondBufferOffset * width);
     } else {

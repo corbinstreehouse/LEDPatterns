@@ -74,10 +74,12 @@ private:
     CDBitmapInfoHeaderV4 m_bInfoV4;
     bool m_isValid;
     CDBitmapColorPaletteEntryRef m_colorTable;
-  
+
+protected:
     uint32_t m_dataOffset;
-    
     FatFile m_file;
+    
+    virtual uint8_t * getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
 public:
     CDLazyBitmap(const char *filename);
     ~CDLazyBitmap();
@@ -110,6 +112,9 @@ private:
     uint32_t m_buffer1Owned:1;
     uint32_t m_buffer1Valid:1; // meaning valid for yOffset; it might have been used for the next yOffset
     uint32_t m_bufferOwned:1;
+    uint32_t m_fileIsInBuffer:1;
+protected:
+    uint8_t *getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
 public:
     // buffers MAY be REFERENCED, if large enough -- they are not owned by this class, and the memory must be kept alive outside of it
     CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize);

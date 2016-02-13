@@ -129,12 +129,6 @@ private: // Patterns
     
     void updateLEDsForPatternType(LEDPatternType patternType);
     
-#if SD_CARD_SUPPORT
-    // Image based patterns from an SD card
-    void linearImageFade();
-    void patternImageEntireStrip();
-#endif
-    
     // Patterns taken from pololu demo
     void warmWhiteShimmer();
     void randomColorWalk(unsigned char initializeColors, unsigned char dimOnly);

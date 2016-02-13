@@ -329,11 +329,11 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
         }
 #if SD_CARD_SUPPORT
         case LEDPatternTypeImageReferencedBitmap: {
-            linearImageFade();
+            bitmapPattern();
             break;
         }
         case LEDPatternTypeImageEntireStrip_UNUSED: {
-            patternImageEntireStrip();
+            bitmapPattern();
             break;
         }
 #endif
@@ -2339,7 +2339,7 @@ void LEDPatterns::bitmapPattern() {
     bool isChasingPattern = m_lazyBitmap->getHeight() == 1;
 //    Serial.printf("m_duration: %d, m_timePassed: %d\r\n", m_duration, m_timePassed);
     // A chasing pattern; duration of 0 is to run as fast as it can
-    if (m_duration == 0) {
+    if (m_duration == 0 || m_patternOptions.bitmapOptions.pov) {
         // FAST AS we can..
         if (isChasingPattern) {
             m_lazyBitmap->incXOffset();
@@ -2348,15 +2348,11 @@ void LEDPatterns::bitmapPattern() {
         }
     } else if (m_timePassed >= m_duration) {
         // The sim is dropping frames; this simulates it going faster
-#if DEBUG || PATTERN_EDITOR
         int count = floor(getPercentagePassed());
-#endif
-#ifndef PATTERN_EDITOR
         if (count > 2) {
             // count might be 1 via 1.02%
             DEBUG_PRINTF("dropping %d frames???\r\n", count - 1);
         }
-#endif
         // Fixup dropped frames??? (I'm not sure if I want to do this..it might be smoother to NOT do it
 #ifdef PATTERN_EDITOR
         while (count > 0)
@@ -2375,7 +2371,7 @@ void LEDPatterns::bitmapPattern() {
     } else if (!m_firstTime) {
         percentageThrough = getPercentagePassed();
     }
-
+    
     if (!isChasingPattern && m_patternOptions.bitmapOptions.shouldStrechBitmap && m_lazyBitmap->getWidth() < m_ledCount) {
         if (m_patternOptions.bitmapOptions.shouldInterpolateStretchedPixels) {
             bitmapPatternStretchInterpolFillPixels();
@@ -2815,163 +2811,6 @@ void LEDPatterns::randomGradients() {
     //        pixel++;
     //    }
 }
-
-#if SD_CARD_SUPPORT
-
-#define USE_TWO_BUFFERS 1
-
-
-void LEDPatterns::patternImageEntireStrip() {
-    bitmapPattern(); // For now..
-    /*
-    int totalPixelsInImage = m_dataLength / 3; // Assumes RGB encoding, 3 bytes per pixel...this should divide evenly..
-    
-    if (m_firstTime) {
-        initImageDataForHeader();
-    }
-    
-    uint32_t currentOffset = 0;
-    uint32_t nextOffsetForBlending = 0;
-    float percentageThrough = getPercentagePassed();
-    if (!m_firstTime) {
-        // Increase the offset by whole amounts once we have enough time passed
-        if (totalPixelsInImage > m_ledCount) {
-            int numOfCompleteImages = totalPixelsInImage / m_ledCount;
-            float percentageThroughOfCompleteImagesThrough = percentageThrough * (float)numOfCompleteImages;
-            // Floor it; we always go up from the previous to the next
-            int totalWholeCompleteImagesThrough = floor(percentageThroughOfCompleteImagesThrough);
-            int wholeCompleteImagesThrough = totalWholeCompleteImagesThrough;
-            // wrap
-            if (wholeCompleteImagesThrough > numOfCompleteImages) {
-                wholeCompleteImagesThrough = wholeCompleteImagesThrough % numOfCompleteImages;
-            }
-            
-            // again...3 bytes per pixel hardcoding!! I think I'd have to decode to this format.
-            if (wholeCompleteImagesThrough > 0) {
-                currentOffset = currentOffset + (3*m_ledCount*wholeCompleteImagesThrough);
-                currentOffset = keepOffsetInDataBounds(currentOffset, m_dataLength); /// Shouldn't happen unless the image length/size is messed up
-            }
-            // Figure out the blending offset by adding one cycle through
-            nextOffsetForBlending = currentOffset + (3*m_ledCount);
-            nextOffsetForBlending = keepOffsetInDataBounds(nextOffsetForBlending, m_dataLength);
-            // Adjust the percentageThrough to the amount we are through based on this current offset....
-            //            percentageThrough = percentageThroughOfCompleteImagesThrough - wholeCompleteImagesThrough;
-            percentageThrough = percentageThroughOfCompleteImagesThrough - totalWholeCompleteImagesThrough;
-        }
-    }
-    
-    for (int x = 0; x < m_ledCount; x++) {
-        // First, bounds check each time... shouldn't be needed unless the size of the image isn't an integral value for the number of pixels.
-        currentOffset = keepOffsetInDataBounds(currentOffset, m_dataLength);
-        nextOffsetForBlending = keepOffsetInDataBounds(nextOffsetForBlending, m_dataLength);
-        
-        uint8_t *data = dataForOffset(currentOffset);
-        uint8_t r = data[0];
-        uint8_t g = data[1];
-        uint8_t b = data[2];
-        
-#if USE_TWO_BUFFERS
-        if (currentOffset != nextOffsetForBlending && percentageThrough > 0) {
-            // Grab the next color and mix it...
-            uint8_t *nextDataForBlending = dataForOffset(nextOffsetForBlending);
-            
-            uint8_t r2 = nextDataForBlending[0];
-            uint8_t g2 = nextDataForBlending[1];
-            uint8_t b2 = nextDataForBlending[2];
-            
-            //            Serial.print("percentage through");
-            //            DEBUG_PRINTLN(percentageThrough);
-            //            Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n", x, r, g, b);
-            //            Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n", x, r2, g2, b2);
-            //
-            //            DEBUG_PRINTLN();
-            
-            // TODO: non floating point math.. ??
-            r = r + round(percentageThrough * (float)(r2 - r));
-            g = g + round(percentageThrough * (float)(g2 - g));
-            b = b + round(percentageThrough * (float)(b2 - b));
-            //            Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n\r\n", x, r, g, b);
-        }
-#endif
-        
-#if 0 // DEBUG
-        Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n", x, r, g, b);
-#endif
-        // dude, this just re-packs it...
-        setPixelColor(x, CRGB(r, g, b));
-        
-        // Again..assumes 3 bytes per pixel
-        currentOffset += 3;
-        nextOffsetForBlending += 3;
-    }
-     */
-}
-
-
-void LEDPatterns::linearImageFade() {
-    bitmapPattern(); // For now..
-/*
-    uint32_t currentOffset = 0;
-    float percentageThrough = 0;
-    if (!m_firstTime) {
-        int totalPixelsInImage = m_dataLength / 3; // Assumes RGB encoding, 3 bytes per pixel...this should divide evenly..
-        percentageThrough = getPercentagePassed();
-        float pixelsThrough = percentageThrough * totalPixelsInImage;
-        int wholePixelsThrough = floor(pixelsThrough);
-        currentOffset = currentOffset + 3*wholePixelsThrough;
-        
-        // Fixup percentageThrough to figure out how much to the next we are...
-        percentageThrough = pixelsThrough - wholePixelsThrough;
-        
-    }
-    //    DEBUG_PRINTF("LINEAR IMAGE: %.3f\r\n", percentageThrough);
-    
-    for (int x = 0; x < m_ledCount; x++) {
-        // First, bounds check each time
-        currentOffset = keepOffsetInDataBounds(currentOffset, m_dataLength);
-        
-        uint8_t *data = dataForOffset(currentOffset);
-        uint8_t r = data[0];
-        uint8_t g = data[1];
-        uint8_t b = data[2];
-        
-        currentOffset += 3;
-#if 0 // USE_TWO_BUFFERS
-        if (percentageThrough > 0) {
-            // TOO SLOW ?? this does a nice fade to the next
-            // Grab the next color and mix it...
-            uint32_t nextColorOffset = keepOffsetInDataBounds(currentOffset);
-            uint8_t *nextColorData = dataForOffset(nextColorOffset, itemHeader);
-            
-            
-            uint8_t r2 = nextColorData[0];
-            uint8_t g2 = nextColorData[1];
-            uint8_t b2 = nextColorData[2];
-            
-            //            Serial.print("percentage through");
-            //            DEBUG_PRINTLN(percentageThrough);
-            //            Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n", x, r, g, b);
-            //            Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n", x, r2, g2, b2);
-            //
-            //            DEBUG_PRINTLN();
-            
-            // TODO: non floating point math.. ??
-            r = r + round(percentageThrough * (float)(r2 - r));
-            g = g + round(percentageThrough * (float)(g2 - g));
-            b = b + round(percentageThrough * (float)(b2 - b));
-            //            Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n\r\n", x, r, g, b);
-        }
-#endif
-        
-#if 0 // DEBUG
-        Serial.printf("x:%d, r:%d, g:%d, b:%d\r\n", x, r, g, b);
-#endif
-        m_leds[x] = CRGB(r, g, b);
-    }
- */
-}
-
-#endif  // SD_CARD_SUPPORT
 
 void LEDPatterns::flashThreeTimes(CRGB color, uint32_t delayAmount) {
     for (int i = 0; i < 3; i++) {

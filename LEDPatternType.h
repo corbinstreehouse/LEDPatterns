@@ -101,13 +101,15 @@ typedef struct __attribute__((__packed__)) LEDBitmapPatternOptions {
     uint32_t shouldInterpolateStretchedPixels:1;
     uint32_t shouldStrechBitmap:1;
     uint32_t shouldInterpolateToNextRow:1;
-    uint32_t reserved:29;
+    uint32_t pov:1;
+    uint32_t reserved:28;
     
 #ifdef __cplusplus
-    inline LEDBitmapPatternOptions(bool shouldInterpolateStretchedPixels, bool shouldStrechBitmap, bool shouldInterpolateToNextRow) {
+    inline LEDBitmapPatternOptions(bool shouldInterpolateStretchedPixels, bool shouldStrechBitmap, bool shouldInterpolateToNextRow, bool pov=false) {
         this->shouldInterpolateStretchedPixels = shouldInterpolateStretchedPixels;
         this->shouldStrechBitmap = shouldStrechBitmap;
         this->shouldInterpolateToNextRow = shouldInterpolateToNextRow;
+        this->pov = pov;
     }
 #endif
     
