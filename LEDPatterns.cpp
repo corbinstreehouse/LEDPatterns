@@ -2372,7 +2372,7 @@ void LEDPatterns::bitmapPattern() {
         percentageThrough = getPercentagePassed();
     }
     
-    if (!isChasingPattern && m_patternOptions.bitmapOptions.shouldStrechBitmap && m_lazyBitmap->getWidth() < m_ledCount) {
+    if (!isChasingPattern && m_patternOptions.bitmapOptions.shouldStretchBitmap && m_lazyBitmap->getWidth() < m_ledCount) {
         if (m_patternOptions.bitmapOptions.shouldInterpolateStretchedPixels) {
             bitmapPatternStretchInterpolFillPixels();
         } else {

@@ -99,15 +99,15 @@ typedef CD_ENUM(int32_t, LEDPatternType) {
     
 typedef struct __attribute__((__packed__)) LEDBitmapPatternOptions {
     uint32_t shouldInterpolateStretchedPixels:1;
-    uint32_t shouldStrechBitmap:1;
+    uint32_t shouldStretchBitmap:1;
     uint32_t shouldInterpolateToNextRow:1;
     uint32_t pov:1;
     uint32_t reserved:28;
     
 #ifdef __cplusplus
-    inline LEDBitmapPatternOptions(bool shouldInterpolateStretchedPixels, bool shouldStrechBitmap, bool shouldInterpolateToNextRow, bool pov=false) {
+    inline LEDBitmapPatternOptions(bool shouldInterpolateStretchedPixels, bool shouldStretchBitmap, bool shouldInterpolateToNextRow, bool pov=false) {
         this->shouldInterpolateStretchedPixels = shouldInterpolateStretchedPixels;
-        this->shouldStrechBitmap = shouldStrechBitmap;
+        this->shouldStretchBitmap = shouldStretchBitmap;
         this->shouldInterpolateToNextRow = shouldInterpolateToNextRow;
         this->pov = pov;
     }
@@ -118,14 +118,14 @@ typedef struct __attribute__((__packed__)) LEDBitmapPatternOptions {
 
 // options that only apply to particular patterns, so I combine them all together. i could put the patternColor here as it only applies to certain patterns.
 // warning: keep at 32-bits for now! Or I have to expand the header
-    // NOTE: I'm going to drop using these, as they come across poorly in swift. I'll just use the main bitset for each option...and maybe put some specific extra data in here..
+    // NOTE: I'm going to drop using these, as they come across poorly in swift. I'll just use the main bitset for each option...and maybe put some specific extra data in here or rename to bitmap...
 typedef struct __attribute__((__packed__)) LEDPatternOptions {
+    
+#ifdef __cplusplus
     union {
         LEDBitmapPatternOptions bitmapOptions;
         uint32_t raw;
     };
-    
-#ifdef __cplusplus
 
     inline LEDPatternOptions() __attribute__((always_inline))
     {
@@ -134,6 +134,9 @@ typedef struct __attribute__((__packed__)) LEDPatternOptions {
     
     inline LEDPatternOptions(LEDBitmapPatternOptions bOptions) : bitmapOptions(bOptions) { }
     inline LEDPatternOptions(uint32_t raw) : raw(raw) { }
+#else
+    // Ugh..... no easy way to do unions in swift. I need to figure out a better way to do this, or else just make this thing a bitset (maybe that is the best solution...
+    LEDBitmapPatternOptions bitmapOptions;
 #endif
     
 } LEDPatternOptions;
