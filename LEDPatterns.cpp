@@ -2351,7 +2351,7 @@ void LEDPatterns::bitmapPattern() {
         int count = floor(getPercentagePassed());
         if (count > 2) {
             // count might be 1 via 1.02%
-            DEBUG_PRINTF("dropping %d frames???\r\n", count - 1);
+//            DEBUG_PRINTF("dropping %d frames???\r\n", count - 1);
         }
         // Fixup dropped frames??? (I'm not sure if I want to do this..it might be smoother to NOT do it
 #ifdef PATTERN_EDITOR

@@ -5,7 +5,7 @@
 // http://www.dragonwins.com/domains/getteched/bmp/bmpfileformat.htm
 
 #undef DEBUG
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG
 #warning "DEBUG CODE IS ON!!!! CDLazyBitmap.h"
