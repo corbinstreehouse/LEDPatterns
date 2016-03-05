@@ -16,6 +16,7 @@
     #include "SdFat.h"
 #endif
 
+// Wait, this is defined in LEDCommon!... but I don't import it from this other project
 #if 1 // DEBUG
     #define DEBUG_PRINTLN(a) Serial.println(a)
     #define DEBUG_PRINTF(a, ...) Serial.printf(a, ##__VA_ARGS__)
