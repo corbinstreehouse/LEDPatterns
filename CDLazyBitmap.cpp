@@ -348,8 +348,8 @@ CDLazyBitmap::~CDLazyBitmap() {
 
 
 
-// TODO: I see about 50k free (even with this 10k consumeed), so I might up this to 20 or even 30k to keep in memory.
-#define MAX_SIZE_SINGLE_BUFFER (10*1024) // 10kB
+// TODO: I see about 50k free (even with this 10k consumeed), so I might up this to 20 or even 30k to keep in memory. -- but my algorithm to detect free ram might be wrong!!
+#define MAX_SIZE_SINGLE_BUFFER (25*1024) // 25kB
 
 // Allocate the memory once for the patterns since we can share it; if we are in the sim, we may have multiple instances
 static CRGB *g_sharedBuffer = NULL; // always NULL for the pattern editor
@@ -427,6 +427,7 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
 #if DEBUG
             if (m_buffer) {
                 Serial.println("using shared buffer");
+                Serial.printf("Free ram: %d\r\n", FreeRam());
             } else {
                 Serial.println("error: NO shared buffer?? using shared buffer");
                 
