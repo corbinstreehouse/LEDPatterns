@@ -146,7 +146,12 @@ uint8_t *CDLazyBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, b
     uint8_t *lineBuffer = (uint8_t *)malloc(size);
     uint32_t lineOffset = m_dataOffset + dataOffset;
     m_file.seekSet(lineOffset);
-    m_file.read((char*)lineBuffer, size);
+    int amountRead = m_file.read((char*)lineBuffer, size);
+#if DEBUG
+    if (amountRead < size) {
+        DEBUG_PRINTF("BITMAP ERROR: requested to read %d but read only %d\r\n", size, amountRead);
+    }
+#endif
     *owned = true;
     return lineBuffer;
 }
@@ -363,6 +368,7 @@ static uint32_t FreeRam() {
 #else
 
 static uint32_t FreeRam() { // for Teensy 3.0
+    // NOTE: this doesn't seem to be returning correct values!!
     uint32_t stackTop;
     uint32_t heapTop;
     
@@ -396,7 +402,7 @@ static inline CRGB *getSharedBuffer() {
             g_sharedBuffer = result;
 #endif
         } else {
-            DEBUG_PRINTF("not enough free ram!: %d\r\n", freeRam);
+            DEBUG_PRINTF("!!!!!!!!!!!! not enough free ram!: %d\r\n", freeRam);
         }
     }
     return result;
@@ -429,16 +435,15 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
                 Serial.println("using shared buffer");
                 Serial.printf("Free ram: %d\r\n", FreeRam());
             } else {
-                Serial.println("error: NO shared buffer?? using shared buffer");
-                
+                Serial.println("error: NO shared buffer??");
             }
 #endif
             
 #ifdef PATTERN_EDITOR
-            m_bufferOwned = true; // Else we own it and free it..
+            m_bufferOwned = true; // The pattern editor owns it
 #endif
         } else {
-            DEBUG_PRINTF("too large for a shared buffer UNCOMPRESSED??, freeRam: %d\r\n", FreeRam());
+            DEBUG_PRINTF("too large for a shared buffer when uncompressed; need %d, MAX_SIZE_SINGLE_BUFFER: %d, freeRam: %d\r\n", totalMemoryNeeded, MAX_SIZE_SINGLE_BUFFER, FreeRam());
             // See if we can fit the data in the shared buffer so we don't load from the SD card a bunch
             uint32_t restDataSize = m_file.fileSize() - m_dataOffset;
             if (restDataSize < MAX_SIZE_SINGLE_BUFFER) {
