@@ -260,7 +260,6 @@ void LEDPatterns::setPatternType(LEDPatternType type) {
     m_stateInfoCount = 0;
     m_loopCount = 0;
     m_count = 0;
-
 }
 
 
@@ -612,21 +611,14 @@ bool LEDPatterns::PatternNeedsDuration(LEDPatternType p) {
     }
 }
 
-
-void LEDPatterns::show() {
-    if (m_pauseTime != 0) {
-        return;
-    }
-    uint32_t now = millis();
+void LEDPatterns::_showFromTime(uint32_t now) {
     // The inital tick always starts with 0
     if (m_startTime > now) {
         m_startTime = now; // roll over..
     }
     m_timePassed = m_firstTime ? 0 : now - m_startTime;
-
     m_percentagePassedCache = m_firstTime ? 0 : m_duration != 0 ? (float)m_timePassed / (float)m_duration : 0.0;
-    
-//    NSLog(@"m_percentagePassedCache %g, m_firstTime: %d, m_timePassed: %d, m_duration: %d", m_percentagePassedCache, m_firstTime, m_timePassed, m_duration);
+    //    NSLog(@"m_percentagePassedCache %g, m_firstTime: %d, m_timePassed: %d, m_duration: %d", m_percentagePassedCache, m_firstTime, m_timePassed, m_duration);
     
     if (!_PatternIsContinuous(m_patternType)) {
         // Since it isn't continuous,we have to reset the percentage when it goes past 1.0, and we reset it and the time back to 0 to start on the exact same 0 tick
@@ -635,10 +627,10 @@ void LEDPatterns::show() {
             m_percentagePassedCache = 0; // Back to the start
             m_timePassed = 0;
             m_startTime = now;
-//            NSLog(@" RESET: m_percentagePassedCache %g, m_firstTime: %d, m_timePassed: %d, m_duration: %d", m_percentagePassedCache, m_firstTime, m_timePassed, m_duration);
+            //            NSLog(@" RESET: m_percentagePassedCache %g, m_firstTime: %d, m_timePassed: %d, m_duration: %d", m_percentagePassedCache, m_firstTime, m_timePassed, m_duration);
         }
     }
-
+    
     m_needsInternalShow = true;
     updateLEDsForPatternType(m_patternType);
     // Some patterns may not need to do any more show work after doing it once.
@@ -649,18 +641,67 @@ void LEDPatterns::show() {
     m_firstTime = false;
 }
 
+void LEDPatterns::show() {
+    if (m_pauseTime != 0) {
+        return;
+    }
+    uint32_t now = millis();
+    _showFromTime(now);
+}
+
 bool LEDPatterns::isPaused() {
     return m_pauseTime != 0;
 }
 
 void LEDPatterns::setDurationPassed(uint32_t timePassedInMS) {
     if (timePassedInMS > 0) {
+        uint32_t now = millis();
+        // Adjust our start and pause time (if necessary)
+        m_startTime = now - timePassedInMS;
+        if (m_pauseTime) {
+            // re-pause at this current time
+            m_pauseTime = now;
+        }
         if (m_firstTime) {
             // Process things once to get us up to speed
-            show();
+            _showFromTime(now);
         }
-        // Now adjust the start time
-        m_startTime = millis() - timePassedInMS;
+        
+        // If we have a bitmap, find out where we should be in it
+        if (m_lazyBitmap) {
+            bool isChasingPattern = m_lazyBitmap->getHeight() == 1;
+            
+            int offset = 0;
+            
+            
+            if (m_duration == 0 || m_patternOptions.bitmapOptions.pov) {
+                // FAST AS we can...estimate the cycles that have passed
+                // Estimate the cycles passed, and assume we did a tick each cycle.
+                // 96Mhz clock .. but I'm not sure how fast or frequently I'm really "ticking" my bitmap stuff
+                // Let's assume ~240 FPS update rate (about right), and base it off that
+                // 240 frames per second, is 240 frames per 1000ms
+                offset = floor((240.0 / 1000.0)*timePassedInMS);
+            } else {
+                // Relatively easy mod operation
+                offset = floor(timePassedInMS / m_duration);
+            }
+            
+            if (offset > 0) {
+                if (isChasingPattern) {
+                    int width = m_lazyBitmap->getWidth();
+                    offset = offset % width;
+                    m_lazyBitmap->setXOffset(offset);
+                } else {
+                    int height = m_lazyBitmap->getHeight();
+                    offset = offset % height;
+                    m_lazyBitmap->setYOffset(offset);
+                    m_lazyBitmap->updateBuffersWithYOffset(offset, -1);
+                }
+            }
+        }
+        
+        // run it twice, as m_firstTime does some one time stuff, and the second tick will do the real work
+        _showFromTime(now);
     }
 }
 
@@ -1728,8 +1769,12 @@ void LEDPatterns::blinkPattern() {
 //    return heatcolor;
 //}
 
-// For 60-htz based patterns
+// For 60-hertz based patterns
 bool LEDPatterns::shouldUpdatePattern() {
+    // if we are paused, update right away
+    if (m_pauseTime > 0) {
+        return true;
+    }
     if (m_firstTime) {
         m_timedPattern = millis(); // Use for timing
         m_needsInternalShow = false; // Avoids work..
@@ -1794,8 +1839,6 @@ void LEDPatterns::fireColorWithPalette(const CRGBPalette16& pal, int cooling, in
 //    for( int k= NUM_LEDS - 1; k >= 2; k--) {
 //        heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
 //    }
-    
-    
     
     // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
     if( random(255) < sparking ) {
@@ -2379,7 +2422,7 @@ void LEDPatterns::bitmapPattern() {
             count--;
 #endif
         }
-        m_startTime = millis(); // resets the clock
+        m_startTime = m_pauseTime > 0 ? m_pauseTime : millis(); // resets the clock
     } else if (!m_firstTime) {
         percentageThrough = getPercentagePassed();
     }

@@ -61,7 +61,7 @@ private:
     
     uint32_t m_pauseTime; // When non-0, we are paused
     
-    
+    void _showFromTime(uint32_t now);
 #if SD_CARD_SUPPORT
     // lazy bitmaps will replace my file format and file reading (soon!)
     CDPatternBitmap *m_lazyBitmap;
@@ -84,7 +84,7 @@ private:
         setPixelColor(i, color);
     }
     
-    bool shouldUpdatePattern(); // for 60hz based patterns 
+    bool shouldUpdatePattern(); // for 60hz based patterns
 private: // Patterns
     // Pattern implementations by corbin
     void wavePattern();

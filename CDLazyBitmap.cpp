@@ -521,18 +521,14 @@ CDPatternBitmap::~CDPatternBitmap() {
     }
 }
 
-void CDPatternBitmap::incYOffsetBuffers() {
+void CDPatternBitmap::updateBuffersWithYOffset(int offset, int oldOffset) {
+
     int height = getHeight();
-    if (height == 1 && m_yOffset == 0) {
+    if (height == 1 && offset == 0) {
         return; // This means we already loaded the data; m_yOffset starts at -1, so we will run through this at least once to fill it up. We could close the file right now..but the abstraction probably isn't necessary
     }
-    int oldOffset = m_yOffset;
-    m_yOffset++;
-    // wrap the values
-    if (m_yOffset >= height) {
-        m_yOffset = 0;
-    }
-    int secondBufferOffset = m_yOffset + 1;
+    
+    int secondBufferOffset = offset + 1;
     if (secondBufferOffset >= height) {
         secondBufferOffset = 0;
     }
@@ -540,15 +536,15 @@ void CDPatternBitmap::incYOffsetBuffers() {
     size_t width = getWidth();
     // If we loaded everything (non NULL buffer), then we can just compute the offset
     if (m_buffer != NULL && !m_fileIsInBuffer) {
-        m_buffer1 = m_buffer + (m_yOffset * width);
+        m_buffer1 = m_buffer + (offset * width);
         m_buffer2 = m_buffer + (secondBufferOffset * width);
     } else {
         // If this was the first time... we fill up both buffers
         if (oldOffset == -1) {
-            fillRGBBufferFromYOffset(m_buffer1, m_yOffset);
+            fillRGBBufferFromYOffset(m_buffer1, offset);
             if (m_buffer2) {
                 if (height == 1) {
-                    memcpy(m_buffer2, m_buffer1, sizeof(CRGB)*getWidth());
+                    memcpy(m_buffer2, m_buffer1, sizeof(CRGB)*width);
                 } else {
                     fillRGBBufferFromYOffset(m_buffer2, secondBufferOffset);
                 }
@@ -556,7 +552,7 @@ void CDPatternBitmap::incYOffsetBuffers() {
         } else {
             // If only have one buffer, just fill up the first one
             if (m_buffer2 == NULL) {
-                fillRGBBufferFromYOffset(m_buffer1, m_yOffset);
+                fillRGBBufferFromYOffset(m_buffer1, offset);
             } else {
                 // Move the second to be the first
                 CRGB *oldFirstBuffer = m_buffer1;

@@ -120,13 +120,39 @@ public:
     CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize);
     ~CDPatternBitmap();
     
-    void incYOffsetBuffers(); // Loads the next y offset, wrapping as needed
+    // Loads the next y offset, wrapping as needed
+    inline void incYOffsetBuffers() {
+        int oldOffset = m_yOffset;
+        m_yOffset++;
+        // wrap the values
+        if (m_yOffset >= getHeight()) {
+            m_yOffset = 0;
+        }
+        updateBuffersWithYOffset(m_yOffset, oldOffset);
+    }
+    
     inline void incXOffset() {
-        m_xOffset++;
+        setXOffset(m_xOffset + 1);
+    }
+    
+    inline void setXOffset(uint xOffset) {
+        m_xOffset = xOffset;
         if (m_xOffset >= getWidth()) {
             m_xOffset = 0;
         }
     }
+    
+    void setYOffset(uint yOffset) {
+        m_yOffset = yOffset;
+        if (m_yOffset >= getHeight()) {
+            m_yOffset = 0;
+        }
+    }
+    
+    // careful! no validation on offset is done
+    // oldOffset can be -1 or the prior one that was loaded (offset is assumed to be oldOffset+1 in that case, minus wrapping)
+    void updateBuffersWithYOffset(int offset, int oldOffset);
+    
     inline void moveToStart() {
         m_yOffset = -1;
         incYOffsetBuffers();
