@@ -213,6 +213,10 @@ public:
     
     // Call show to make the update take
     void show();
+    inline void forceShow() {
+        uint32_t now = isPaused() ? getPauseTime() : millis();
+        _showFromTime(now);
+    }
     
     // The next methods are useful for showing state; they flash using "delay" and return after the flash has completed.
     void flashThreeTimes(CRGB color, uint32_t delay = 150);
