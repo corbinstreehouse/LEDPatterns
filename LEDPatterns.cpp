@@ -653,15 +653,14 @@ bool LEDPatterns::isPaused() {
     return m_pauseTime != 0;
 }
 
-void LEDPatterns::setDurationPassed(uint32_t timePassedInMS) {
+void LEDPatterns::setDurationPassed(uint32_t timePassedInMS, uint32_t now) {
+    // Adjust our start and pause time (if necessary)
+    m_startTime = now - timePassedInMS;
+    if (m_pauseTime) {
+        // re-pause at this current time
+        m_pauseTime = now;
+    }
     if (timePassedInMS > 0) {
-        uint32_t now = millis();
-        // Adjust our start and pause time (if necessary)
-        m_startTime = now - timePassedInMS;
-        if (m_pauseTime) {
-            // re-pause at this current time
-            m_pauseTime = now;
-        }
         if (m_firstTime) {
             // Process things once to get us up to speed
             _showFromTime(now);
@@ -702,6 +701,8 @@ void LEDPatterns::setDurationPassed(uint32_t timePassedInMS) {
         
         // run it twice, as m_firstTime does some one time stuff, and the second tick will do the real work
         _showFromTime(now);
+    } else {
+        forceShow();
     }
 }
 
