@@ -146,7 +146,10 @@ uint8_t *CDLazyBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, b
     uint8_t *lineBuffer = (uint8_t *)malloc(size);
     uint32_t lineOffset = m_dataOffset + dataOffset;
     m_file.seekSet(lineOffset);
-    int amountRead = m_file.read((char*)lineBuffer, size);
+#if DEBUG
+    int amountRead =
+#endif
+    m_file.read((char*)lineBuffer, size);
 #if DEBUG
     if (amountRead < size) {
         DEBUG_PRINTF("BITMAP ERROR: requested to read %d but read only %d\r\n", size, amountRead);

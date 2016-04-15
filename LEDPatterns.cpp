@@ -653,6 +653,17 @@ bool LEDPatterns::isPaused() {
     return m_pauseTime != 0;
 }
 
+void LEDPatterns::setDurationPassed(uint32_t timePassedInMS) {
+    if (timePassedInMS > 0) {
+        if (m_firstTime) {
+            // Process things once to get us up to speed
+            show();
+        }
+        // Now adjust the start time
+        m_startTime = millis() - timePassedInMS;
+    }
+}
+
 void LEDPatterns::play() {
     if (m_pauseTime != 0) {
         // increase the start time by the time that has passed

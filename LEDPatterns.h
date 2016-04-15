@@ -224,9 +224,10 @@ public:
     void pause();
     void play();
     bool isPaused();
+    inline uint32_t getPauseTime() { return m_pauseTime; } // Non-0 if paused; else the time we paused at
+    
+    void setDurationPassed(uint32_t timePassedInMS); 
 };
-
-
 
 
 
