@@ -72,10 +72,10 @@ class CDLazyBitmap {
 private:
     CDBitmapInfoHeader m_bInfo;
     CDBitmapInfoHeaderV4 m_bInfoV4;
-    bool m_isValid;
     CDBitmapColorPaletteEntryRef m_colorTable;
-
+    uint32_t m_width, m_height;
 protected:
+    bool m_isValid;
     uint32_t m_dataOffset;
     FatFile m_file;
     
@@ -88,11 +88,11 @@ public:
     inline bool getIsValid() { return m_isValid; }
     
     inline uint32_t getWidth() {
-		return m_bInfo.biWidth < 0 ? -m_bInfo.biWidth : m_bInfo.biWidth;
+        return m_width; // m_bInfo.biWidth < 0 ? -m_bInfo.biWidth : m_bInfo.biWidth;
 	}
 	
 	inline uint32_t getHeight() {
-		return m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
+        return m_height; // m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
 	}
     
     // fills the buffer from the image data, loading it as needed.
@@ -110,9 +110,10 @@ private:
     int m_yOffset; // y offset for the first buffer, second is the next line (or wrapped, the first line)
     int m_xOffset; // used by the pattern
     uint32_t m_buffer1Owned:1;
-    uint32_t m_buffer1Valid:1; // meaning valid for yOffset; it might have been used for the next yOffset
+    uint32_t m_buffer2Owned:1;
     uint32_t m_bufferOwned:1;
-    uint32_t m_fileIsInBuffer:1;
+    uint32_t m_bufferIsEntireFile:1;
+    uint32_t m_bufferIsFullCRGBData:1;
 protected:
     uint8_t *getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
 public:
@@ -125,8 +126,12 @@ public:
         int oldOffset = m_yOffset;
         m_yOffset++;
         // wrap the values
-        if (m_yOffset >= getHeight()) {
+        int height = getHeight();
+        if (m_yOffset >= height) {
             m_yOffset = 0;
+            if (height == 1 && oldOffset == 1) {
+                return; // Already filled..
+            }
         }
         updateBuffersWithYOffset(m_yOffset, oldOffset);
     }
@@ -160,8 +165,18 @@ public:
     inline int getXOffset() { return m_xOffset; }
     inline int getYOffset() { return m_yOffset; }
     
-    CRGB *getFirstBuffer(); // always returns a buffer with the data up to the width
-    CRGB *getSecondBuffer(); // always returns a buffer with the data up to the width for the second line (if width > 1)
+    inline CRGB *getFirstBuffer() {
+#if DEBUG
+        ASSERT(m_buffer1 != NULL)
+#endif
+        return m_buffer1;
+    }
+    inline CRGB *getSecondBuffer() {
+#if DEBUG
+        ASSERT(m_buffer2 != NULL)
+#endif
+        return m_buffer2;
+    }
     
 };
 

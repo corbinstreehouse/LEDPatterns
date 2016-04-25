@@ -137,13 +137,18 @@ CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL) {
         m_colorTable = NULL;
     }
     
+    // Cache hot spots
+    m_width = m_bInfo.biWidth < 0 ? -m_bInfo.biWidth : m_bInfo.biWidth;
+    m_height = m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
+    
+    
     m_dataOffset = fileHeader.bfOffBits;
     
     m_isValid = true;
 }
 
 uint8_t *CDLazyBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned) {
-    uint8_t *lineBuffer = (uint8_t *)malloc(size);
+    uint8_t *lineBuffer = (uint8_t *)malloc(size);     // corbin -- use shared buffer!!
     uint32_t lineOffset = m_dataOffset + dataOffset;
     m_file.seekSet(lineOffset);
 #if DEBUG
@@ -165,8 +170,9 @@ void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
         return;
     }
     
+    uint32_t width = getWidth();
+
     if (m_bInfo.biCompression == 0) {
-        uint32_t width = getWidth();
         // 4 byte aligned rows
         unsigned int lineWidth = ((width * m_bInfo.biBitCount / 8) + 3) & ~3;
 
@@ -356,35 +362,26 @@ CDLazyBitmap::~CDLazyBitmap() {
 
 
 
-// TODO: I see about 50k free (even with this 10k consumeed), so I might up this to 20 or even 30k to keep in memory. -- but my algorithm to detect free ram might be wrong!!
-#define MAX_SIZE_SINGLE_BUFFER (25*1024) // 25kB
+//35k.. trying that
+// with this, I still see: Free ram: 12071, total: 65536
+// 18.4% free
+#define MAX_SIZE_SINGLE_BUFFER (35*1024)
 
 // Allocate the memory once for the patterns since we can share it; if we are in the sim, we may have multiple instances
 static CRGB *g_sharedBuffer = NULL; // always NULL for the pattern editor
 
 #ifdef PATTERN_EDITOR
 
-static uint32_t FreeRam() {
+static uint32_t heap_free() {
     return MAX_SIZE_SINGLE_BUFFER + 1025; // Doesn't matter
 }
 
 #else
 
-static uint32_t FreeRam() { // for Teensy 3.0
-    // NOTE: this doesn't seem to be returning correct values!!
-    uint32_t stackTop;
-    uint32_t heapTop;
-    
-    // current position of the stack.
-    stackTop = (uint32_t) &stackTop;
-    
-    // current position of heap.
-    void* hTop = malloc(1);
-    heapTop = (uint32_t) hTop;
-    free(hTop);
-    
-    // The difference is the free, available ram.
-    return stackTop - heapTop;
+#include "RamMonitor.h"
+RamMonitor ram;
+uint32_t heap_free() {
+    return ram.free();
 }
 
 #endif
@@ -393,7 +390,7 @@ static uint32_t FreeRam() { // for Teensy 3.0
 static inline CRGB *getSharedBuffer() {
     CRGB *result = g_sharedBuffer;
     if (result == NULL) {
-        uint32_t freeRam = FreeRam();
+        uint32_t freeRam = heap_free();
         // Make sure we have extra room for the program to run (1kB enough?)
         if (freeRam > (MAX_SIZE_SINGLE_BUFFER + 1024)) {
             // allocate it
@@ -413,7 +410,7 @@ static inline CRGB *getSharedBuffer() {
 
 
 uint8_t *CDPatternBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned) {
-    if (m_fileIsInBuffer) {
+    if (m_bufferIsEntireFile) {
         uint8_t *result = (uint8_t *)m_buffer;
         *owned = false;
         return &result[dataOffset];
@@ -422,87 +419,93 @@ uint8_t *CDPatternBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset
     }
 }
 
-CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize) : CDLazyBitmap(filename), m_xOffset(0), m_yOffset(-1), m_buffer(NULL), m_bufferOwned(false), m_buffer1Owned(false), m_fileIsInBuffer(false)  {
+CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize) : CDLazyBitmap(filename), m_xOffset(0), m_yOffset(-1), m_bufferOwned(false), m_buffer1Owned(false), m_buffer2Owned(false), m_bufferIsEntireFile(false), m_bufferIsFullCRGBData(false)  {
     
-    // Allocate an internal buffer if the passed in ones aren't large enough
     
-    // In the end, this complexity may not be needed, as loading a line at a time from the SD card seems fast enough..
-    if (getIsValid()) {
+#ifndef PATTERN_EDITOR
+    Serial.printf("Free ram: %d, total: %d\r\n", ram.free(), ram.total());
+    Serial.print((((float) ram.free()) / (float)ram.total()) * 100, 1);
+    Serial.println("% <- free ram out of total ram");
+#endif
+    
+
+    m_buffer = getSharedBuffer();
+    if (m_buffer == NULL) {
+        Serial.println("error: NO shared buffer??");
+        m_isValid = false;
+    }
+#ifdef PATTERN_EDITOR
+    m_bufferOwned = true; // The pattern editor owns it
+#endif
+    
+    
+    // This complexity IS needed, as loading a line at a time from the SD card IS TOO SLOW
+    if (m_isValid) {
         size_t totalMemoryNeeded = sizeof(CRGB)*getWidth()*getHeight();
         
-        // Try to allocate one big buffer to hold it all in RAM; up to 10kB
+        // Try to allocate one big buffer to hold it all in RAM
         if (totalMemoryNeeded <= MAX_SIZE_SINGLE_BUFFER) {
-            m_buffer = getSharedBuffer();
-#if DEBUG
-            if (m_buffer) {
-                Serial.println("using shared buffer");
-                Serial.printf("Free ram: %d\r\n", FreeRam());
-            } else {
-                Serial.println("error: NO shared buffer??");
-            }
-#endif
-            
-#ifdef PATTERN_EDITOR
-            m_bufferOwned = true; // The pattern editor owns it
-#endif
-        } else {
-            DEBUG_PRINTF("too large for a shared buffer when uncompressed; need %d, MAX_SIZE_SINGLE_BUFFER: %d, freeRam: %d\r\n", totalMemoryNeeded, MAX_SIZE_SINGLE_BUFFER, FreeRam());
-            // See if we can fit the data in the shared buffer so we don't load from the SD card a bunch
-            uint32_t restDataSize = m_file.fileSize() - m_dataOffset;
-            if (restDataSize < MAX_SIZE_SINGLE_BUFFER) {
-                m_buffer = getSharedBuffer();
-                if (m_buffer) {
-                    DEBUG_PRINTLN("... BUT loading all the image data into the shared buffer");
-                    m_file.seekSet(m_dataOffset);
-                    // suck it in
-                    m_file.read((char*)m_buffer, restDataSize);
-                    m_file.close();
-                    // The mark that we did this..
-                    m_fileIsInBuffer = true;
-                
-#ifdef PATTERN_EDITOR
-                    m_bufferOwned = true; // Else we own it and free it..
-#endif
-                }
-            }
-        }
-        
-        // If we could allocate it, then fill it up!
-        if (m_buffer != NULL && !m_fileIsInBuffer) {
+            m_bufferIsFullCRGBData = true;
             CRGB *offset = m_buffer;
             for (int y = 0; y < getHeight(); y++ ) {
                 fillRGBBufferFromYOffset(offset, y);
                 offset += getWidth();
             }
         } else {
-            // Do a line at a time..
+//            DEBUG_PRINTF("too large for a shared buffer when uncompressed; need %d, MAX_SIZE_SINGLE_BUFFER: %d, freeRam: %d\r\n", totalMemoryNeeded, MAX_SIZE_SINGLE_BUFFER, heap_free());
+            
+            // See if we can fit the SD card compressed data in the shared buffer so we don't load from the SD card a bunch
+            uint32_t restDataSize = m_file.fileSize() - m_dataOffset;
+            if (restDataSize <= MAX_SIZE_SINGLE_BUFFER) {
+                m_file.seekSet(m_dataOffset);
+                // suck it in
+                m_file.read((char*)m_buffer, restDataSize);
+                m_file.close();
+                // The mark that we did this..
+                m_bufferIsEntireFile = true;
+            }
+            
+            // Try to use the passed in buffers
             size_t requiredBufferSize = sizeof(CRGB)*getWidth();
             if (bufferSize >= requiredBufferSize) {
                 m_buffer1 = buffer1;
                 m_buffer2 = buffer2;
-                m_buffer1Owned = false;
+                // Default is false
+//                m_buffer1Owned = false;
+//                m_buffer2Owned = false;
             } else {
-                // Try the shared buffer for a single line, if not used already
-                m_buffer1 = !m_fileIsInBuffer ? getSharedBuffer() : NULL;
-                if (m_buffer1) {
-#ifdef PATTERN_EDITOR
-                    m_buffer1Owned = true; // It was allocated in this case
-#endif
-                } else {
-                    // Allocate and own it; if we have enough space
-                    if (requiredBufferSize < (FreeRam() + 1024)) {
+                // Okay, we have to allocate
+                if (m_bufferIsEntireFile) {
+                    // the shared buffer is in use
+                    if (2*requiredBufferSize < (heap_free() + 1024)) {
                         m_buffer1 = (CRGB *)malloc(requiredBufferSize);
+                        m_buffer2 = (CRGB *)malloc(requiredBufferSize);
                         m_buffer1Owned = true; // It was allocated in this case
+                        m_buffer2Owned = true;
                     } else {
-                        // Error condition...not enough RAM!
-                        
+                        // Not enough RAM to allocate it
+                        DEBUG_PRINTLN("not enough RAM for buffers");
+                        m_isValid = false;
+                    }
+                } else {
+                    // Use the shared buffer for one.
+                    m_buffer1 = m_buffer;
+//                    m_buffer1Owned = false;
+                    // Allocate the second
+                    if (requiredBufferSize < (heap_free() + 1024)) {
+                        m_buffer2 = (CRGB *)malloc(requiredBufferSize);
+                        m_buffer2Owned = true; // It was allocated in this case
+                    } else {
+                        // Not enough RAM to allocate it
+                        DEBUG_PRINTLN("not enough RAM for buffers");
+                        m_isValid = false;
                     }
                 }
-                
-                m_buffer2 = NULL; // only one? sure..
             }
         }
-        incYOffsetBuffers();
+        if (m_isValid) {
+            incYOffsetBuffers();
+        }
     }
 }
 
@@ -512,6 +515,8 @@ CDPatternBitmap::~CDPatternBitmap() {
         if (m_buffer1) {
             free(m_buffer1);
         }
+    }
+    if (m_buffer2Owned) {
         if (m_buffer2) {
             free(m_buffer2);
         }
@@ -522,12 +527,8 @@ CDPatternBitmap::~CDPatternBitmap() {
 }
 
 void CDPatternBitmap::updateBuffersWithYOffset(int offset, int oldOffset) {
-
     int height = getHeight();
-    if (height == 1 && offset == 0) {
-        return; // This means we already loaded the data; m_yOffset starts at -1, so we will run through this at least once to fill it up. We could close the file right now..but the abstraction probably isn't necessary
-    }
-    
+
     int secondBufferOffset = offset + 1;
     if (secondBufferOffset >= height) {
         secondBufferOffset = 0;
@@ -535,61 +536,27 @@ void CDPatternBitmap::updateBuffersWithYOffset(int offset, int oldOffset) {
     
     size_t width = getWidth();
     // If we loaded everything (non NULL buffer), then we can just compute the offset
-    if (m_buffer != NULL && !m_fileIsInBuffer) {
+    if (m_bufferIsFullCRGBData) {
         m_buffer1 = m_buffer + (offset * width);
         m_buffer2 = m_buffer + (secondBufferOffset * width);
     } else {
         // If this was the first time... we fill up both buffers
         if (oldOffset == -1) {
             fillRGBBufferFromYOffset(m_buffer1, offset);
-            if (m_buffer2) {
-                if (height == 1) {
-                    memcpy(m_buffer2, m_buffer1, sizeof(CRGB)*width);
-                } else {
-                    fillRGBBufferFromYOffset(m_buffer2, secondBufferOffset);
-                }
+            if (height == 1) {
+                memcpy(m_buffer2, m_buffer1, sizeof(CRGB)*width);
+            } else {
+                fillRGBBufferFromYOffset(m_buffer2, secondBufferOffset);
             }
         } else {
-            // If only have one buffer, just fill up the first one
-            if (m_buffer2 == NULL) {
-                fillRGBBufferFromYOffset(m_buffer1, offset);
-            } else {
-                // Move the second to be the first
-                CRGB *oldFirstBuffer = m_buffer1;
-                m_buffer1 = m_buffer2;
-                m_buffer2 = oldFirstBuffer;
-                // well, we only have to fill it back up if there are more than 2 rows
-                if (height > 2) {
-                    fillRGBBufferFromYOffset(m_buffer2, secondBufferOffset);
-                }
+            // Move the second to be the first
+            CRGB *oldFirstBuffer = m_buffer1;
+            m_buffer1 = m_buffer2;
+            m_buffer2 = oldFirstBuffer;
+            // well, we only have to fill it back up if there are more than 2 rows
+            if (height > 2) {
+                fillRGBBufferFromYOffset(m_buffer2, secondBufferOffset);
             }
         }
     }
-    m_buffer1Valid = true;
 }
-
-CRGB *CDPatternBitmap::getFirstBuffer() {
-    if (m_yOffset == -1) {
-        incYOffsetBuffers();
-    }
-    if (!m_buffer1Valid) {
-        fillRGBBufferFromYOffset(m_buffer1, m_yOffset);
-        m_buffer1Valid = true;
-    }
-    return m_buffer1;
-}
-
-CRGB *CDPatternBitmap::getSecondBuffer() {
-    if (m_buffer2) {
-        return m_buffer2;
-    }
-    // we have to re-use the first buffer..
-//    int secondBufferOffset = m_yOffset;
-//    if (secondBufferOffset >= getHeight()) {
-//        secondBufferOffset = 0;
-//    }
-    fillRGBBufferFromYOffset(m_buffer1, m_yOffset);
-    m_buffer1Valid = false;
-    return m_buffer1;
-}
-

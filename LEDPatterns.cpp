@@ -147,6 +147,7 @@ void LEDStateInfo::update(CRGB *leds, int ledCount) {
     }
 }
 
+// https://github.com/fibonacci162/LEDs/blob/master/BouncingBalls2014/BouncingBalls2014.ino
 void LEDStateInfo::updateBounceColor(CRGB *leds, int ledCount) {
     m_cycle =  millis() - m_lastUpdate ;     // Calculate the time since the last time the ball was on the ground
     
