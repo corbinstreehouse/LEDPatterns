@@ -294,7 +294,7 @@ void CDPatternBitmap::fillEntireBufferFromFile_comp1(CRGB *buffer) {
 
             }
         }
-    }    
+    }
 }
 
 void CDPatternBitmap::uncompressed_fillRGBBufferFromYOffset(CRGB *buffer, int y) {
@@ -387,7 +387,7 @@ void CDPatternBitmap::uncompressed_fillRGBBufferFromYOffset(CRGB *buffer, int y)
 }
 
 #if 0
-void CDPatternBitmap::uncompressed_fillRGBBufferFromYOffset(CRGB *buffer, int y) {
+void CDPatternBitmap::OLD_uncompressed_fillRGBBufferFromYOffset(CRGB *buffer, int y) {
     if (y >= getHeight() || y < 0) {
         DEBUG_PRINTLN("bad y offset requested");
         return;
@@ -616,7 +616,14 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
     if (totalMemoryNeeded <= MAX_SIZE_SINGLE_BUFFER) {
         m_bufferIsFullCRGBData = true;
         fillEntireBufferFromFile(m_buffer);
+    } else if (m_bInfo.biCompression == 1) {
+        // TODO: handle compression 1!!
+        // if we are RLE, only do it if the entire thing can be in memory; otherwise it is going to be god awful slow disk access, and I want to know that is the issue by making it "invalid"
+        m_isValid = false; // bad; not enough memory
+        DEBUG_PRINTLN("not enough RAM for RLE 8 encoding");
     } else {
+        // compression 0 (uncompressed) bitmaps  only!!
+        
 //            DEBUG_PRINTF("too large for a shared buffer when uncompressed; need %d, MAX_SIZE_SINGLE_BUFFER: %d, freeRam: %d\r\n", totalMemoryNeeded, MAX_SIZE_SINGLE_BUFFER, heap_free());
         
         // See if we can fit the SD card compressed data in the shared buffer so we don't load from the SD card a bunch
@@ -666,14 +673,6 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
                     m_isValid = false;
                 }
             }
-        }
-        
-        // TODO: handle compression 1!!
-        
-        // if we are RLE, only do it if the entire thing can be in memory; otherwise it is going to be god awful slow disk access, and I want to know that is the issue by making it "invalid"
-        if (m_bInfo.biCompression == 1) {
-            m_isValid = false; // bad; not enough memory
-            DEBUG_PRINTLN("not enough RAM for RLE 8 encoding");
         }
     }
 
