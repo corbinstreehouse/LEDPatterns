@@ -201,7 +201,7 @@ public:
         }
     }
     
-    inline CDLazyBitmap *getBitmap() { return m_lazyBitmap; }
+    inline CDPatternBitmap *getBitmap() { return m_lazyBitmap; }
     
 #endif
     

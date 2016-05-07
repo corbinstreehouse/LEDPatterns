@@ -78,93 +78,7 @@ void DumpFile(File *file) {
 }
 #endif
 
-CDLazyBitmap::CDLazyBitmap(const char *filename) : m_colorTable(NULL) {
-    DEBUG_PRINTF("Bitmap loading: %s\r\n", filename);
-    m_isValid = false;
-
-    m_file = FatFile(filename, O_READ);
-    if (!m_file.isFile()) {
-        DEBUG_PRINTF(" not a bitmap file?: %s\r\n", filename);
-        return;
-    }
-    
-    CDBitmapFileHeader fileHeader;
-    if (m_file.read((char*)&fileHeader, sizeof(CDBitmapFileHeader)) != sizeof(CDBitmapFileHeader)) {
-        CLOSE_AND_RETURN("not a window bitmap image");
-    }
-    
-    if (fileHeader.bfType != BITMAP_SIGNATURE) {
-        CLOSE_AND_RETURN("not a window bitmap image");
-    }
-    
-    if (m_file.read((char*)&m_bInfo, sizeof(CDBitmapInfoHeader)) != sizeof(CDBitmapInfoHeader)) {
-        CLOSE_AND_RETURN("not an image??");
-    }
-    
-    // 40 byte size is just CDBitmapInfoHeader
-    if (m_bInfo.biSize == (sizeof(CDBitmapInfoHeader) + sizeof(CDBitmapInfoHeaderV4))) {
-        // Read in v4 stuff
-        if (m_file.read((char*)&m_bInfoV4, sizeof(CDBitmapInfoHeaderV4)) != sizeof(CDBitmapInfoHeaderV4)) {
-            CLOSE_AND_RETURN("biSize should be at least v4 size!");
-        }
-    } else if (m_bInfo.biSize != sizeof(CDBitmapInfoHeader)) {
-        CLOSE_AND_RETURN("biSize should be at least 40!");
-    }
-    
-    // TODO: compression level 1..possible, but slow!!
-    if (m_bInfo.biCompression != 0 /*&& (m_bInfo.biCompression != 1 && m_bInfo.biCompression != 3*/) {
-        CLOSE_AND_RETURN("Not supported type of compression");
-    }
-    
-    if (m_bInfo.biBitCount != 32 && m_bInfo.biBitCount != 24 && m_bInfo.biBitCount != 8 && m_bInfo.biBitCount != 4 && m_bInfo.biBitCount != 1) {
-        CLOSE_AND_RETURN("Not supported color depth");
-    }
-    
-    if (m_bInfo.biBitCount <= 8) {
-//        DEBUG_PRINTF("reading palette: %s\r\n", filename);
-        uint32_t paletteSize = m_bInfo.biClrUsed;
-        if (paletteSize == 0) {
-            paletteSize = 1 << m_bInfo.biBitCount; // 2^depth
-        }
-        paletteSize *= sizeof(CDBitmapColorPaletteEntry);
-        
-        // Read the palette.
-        m_colorTable = (CDBitmapColorPaletteEntryRef)malloc(paletteSize);
-        if (m_file.read((char*)m_colorTable, paletteSize) != paletteSize) {
-            CLOSE_AND_RETURN("No palette?");
-        }
-    } else {
-        m_colorTable = NULL;
-    }
-    
-    // Cache hot spots
-    m_width = m_bInfo.biWidth < 0 ? -m_bInfo.biWidth : m_bInfo.biWidth;
-    m_height = m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
-    
-    
-    m_dataOffset = fileHeader.bfOffBits;
-    
-    m_isValid = true;
-}
-
-uint8_t *CDLazyBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned) {
-    uint8_t *lineBuffer = (uint8_t *)malloc(size);     // corbin -- use shared buffer!!
-    uint32_t lineOffset = m_dataOffset + dataOffset;
-    m_file.seekSet(lineOffset);
-#if DEBUG
-    int amountRead =
-#endif
-    m_file.read((char*)lineBuffer, size);
-#if DEBUG
-    if (amountRead < size) {
-        DEBUG_PRINTF("BITMAP ERROR: requested to read %d but read only %d\r\n", size, amountRead);
-    }
-#endif
-    *owned = true;
-    return lineBuffer;
-}
-
-void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
+void CDPatternBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
     if (y >= getHeight() || y < 0) {
         DEBUG_PRINTLN("bad y offset requested");
         return;
@@ -250,19 +164,22 @@ void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
         }
 
     } else if (m_bInfo.biCompression == 1) { // RLE 8
-#if 0
+/*
+        
         m_file.seekSet(m_dataOffset);
         
         uint8_t Count = 0;
         uint8_t ColorIndex = 0;
         int x = 0, y = 0;
+        df
+        uint8_t *lineBuffer = getLineBufferAtOffset(size, offset, &owned);
         
         while (file.eof() == false) {
             m_file.read((char*) &Count, sizeof(uint8_t));
             m_file.read((char*) &ColorIndex, sizeof(uint8_t));
             
             if (Count > 0) {
-                Index = x + y * GetWidth();
+                Index = x + y * width;
                 for (int k = 0; k < Count; k++) {
                     m_lineData[Index + k].red = m_colorTable[ColorIndex].red;
                     m_lineData[Index + k].green = m_colorTable[ColorIndex].green;
@@ -302,7 +219,7 @@ void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
                 }
             }
         }
-#endif
+ */
     } else if (m_bInfo.biCompression == 2) { // RLE 4
         /* RLE 4 is not supported */ // checked earlier
     } else if (m_bInfo.biCompression == 3) { // BITFIELDS
@@ -350,22 +267,11 @@ void CDLazyBitmap::fillRGBBufferFromYOffset(CRGB *buffer, int y) {
     
 }
 
-CDLazyBitmap::~CDLazyBitmap() {
-    if (m_file.isOpen()) {
-        m_file.close();
-    }
-
-    if (m_colorTable) {
-        free(m_colorTable);
-    }
-}
-
-
 
 //35k.. trying that
 // with this, I still see: Free ram: 12071, total: 65536
 // 18.4% free
-#define MAX_SIZE_SINGLE_BUFFER (35*1024)
+#define MAX_SIZE_SINGLE_BUFFER (40*1024)
 
 // Allocate the memory once for the patterns since we can share it; if we are in the sim, we may have multiple instances
 static CRGB *g_sharedBuffer = NULL; // always NULL for the pattern editor
@@ -415,17 +321,100 @@ uint8_t *CDPatternBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset
         *owned = false;
         return &result[dataOffset];
     } else {
-        return CDLazyBitmap::getLineBufferAtOffset(size, dataOffset, owned);
+        uint8_t *lineBuffer = (uint8_t *)malloc(size);     // corbin -- use shared buffer!!
+        uint32_t lineOffset = m_dataOffset + dataOffset;
+        m_file.seekSet(lineOffset);
+#if DEBUG
+        int amountRead =
+#endif
+        m_file.read((char*)lineBuffer, size);
+#if DEBUG
+        if (amountRead < size) {
+            DEBUG_PRINTF("BITMAP ERROR: requested to read %d but read only %d\r\n", size, amountRead);
+        }
+#endif
+        *owned = true;
+        return lineBuffer;
     }
 }
 
-CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize) : CDLazyBitmap(filename), m_xOffset(0), m_yOffset(-1), m_bufferOwned(false), m_buffer1Owned(false), m_buffer2Owned(false), m_bufferIsEntireFile(false), m_bufferIsFullCRGBData(false)  {
+CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize) : m_xOffset(0), m_yOffset(-1), m_bufferOwned(false), m_buffer1Owned(false), m_buffer2Owned(false), m_bufferIsEntireFile(false), m_bufferIsFullCRGBData(false), m_colorTable(NULL)  {
+    
+    
+    DEBUG_PRINTF("Bitmap loading: %s\r\n", filename);
+    m_isValid = false;
+    
+    m_file = FatFile(filename, O_READ);
+    if (!m_file.isFile()) {
+        DEBUG_PRINTF(" not a bitmap file?: %s\r\n", filename);
+        return;
+    }
+    
+    CDBitmapFileHeader fileHeader;
+    if (m_file.read((char*)&fileHeader, sizeof(CDBitmapFileHeader)) != sizeof(CDBitmapFileHeader)) {
+        CLOSE_AND_RETURN("not a window bitmap image");
+    }
+    
+    if (fileHeader.bfType != BITMAP_SIGNATURE) {
+        CLOSE_AND_RETURN("not a window bitmap image");
+    }
+    
+    if (m_file.read((char*)&m_bInfo, sizeof(CDBitmapInfoHeader)) != sizeof(CDBitmapInfoHeader)) {
+        CLOSE_AND_RETURN("not an image??");
+    }
+    
+    // 40 byte size is just CDBitmapInfoHeader
+    if (m_bInfo.biSize == (sizeof(CDBitmapInfoHeader) + sizeof(CDBitmapInfoHeaderV4))) {
+        // Read in v4 stuff
+        if (m_file.read((char*)&m_bInfoV4, sizeof(CDBitmapInfoHeaderV4)) != sizeof(CDBitmapInfoHeaderV4)) {
+            CLOSE_AND_RETURN("biSize should be at least v4 size!");
+        }
+    } else if (m_bInfo.biSize != sizeof(CDBitmapInfoHeader)) {
+        CLOSE_AND_RETURN("biSize should be at least 40!");
+    }
+    
+    // TODO: compression level 1..possible, but slow!!
+    if (m_bInfo.biCompression != 0 && m_bInfo.biCompression != 1/*&& ( && m_bInfo.biCompression != 3*/) {
+        CLOSE_AND_RETURN("Not supported type of compression");
+    }
+    
+    if (m_bInfo.biBitCount != 32 && m_bInfo.biBitCount != 24 && m_bInfo.biBitCount != 8 && m_bInfo.biBitCount != 4 && m_bInfo.biBitCount != 1) {
+        CLOSE_AND_RETURN("Not supported color depth");
+    }
+    
+    if (m_bInfo.biBitCount <= 8) {
+        //        DEBUG_PRINTF("reading palette: %s\r\n", filename);
+        uint32_t paletteSize = m_bInfo.biClrUsed;
+        if (paletteSize == 0) {
+            paletteSize = 1 << m_bInfo.biBitCount; // 2^depth
+        }
+        paletteSize *= sizeof(CDBitmapColorPaletteEntry);
+        
+        // Read the palette.
+        m_colorTable = (CDBitmapColorPaletteEntryRef)malloc(paletteSize);
+        if (m_file.read((char*)m_colorTable, paletteSize) != paletteSize) {
+            CLOSE_AND_RETURN("No palette?");
+        }
+    } else {
+        m_colorTable = NULL;
+    }
+    
+    // Cache hot spots
+    m_width = m_bInfo.biWidth < 0 ? -m_bInfo.biWidth : m_bInfo.biWidth;
+    m_height = m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
+    
+    
+    m_dataOffset = fileHeader.bfOffBits;
+    
+    m_isValid = true;
     
     
 #ifndef PATTERN_EDITOR
+#if DEBUG
     Serial.printf("Free ram: %d, total: %d\r\n", ram.free(), ram.total());
     Serial.print((((float) ram.free()) / (float)ram.total()) * 100, 1);
     Serial.println("% <- free ram out of total ram");
+#endif
 #endif
     
 
@@ -503,6 +492,16 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
                 }
             }
         }
+        // if we are RLE, only do it if the entire thing can be in memory; otherwise it is going to be god awful slow disk access, and I want to know that is the issue by making it "invalid"
+        if (m_isValid && m_bInfo.biCompression == 1) {
+            if (m_bufferIsEntireFile || m_bufferIsFullCRGBData) {
+                // good
+            } else {
+                m_isValid = false; // bad; not enough memory
+                DEBUG_PRINTLN("not enough RAM for RLE 8 encoding");
+            }
+        }
+
         if (m_isValid) {
             incYOffsetBuffers();
         }
@@ -523,6 +522,13 @@ CDPatternBitmap::~CDPatternBitmap() {
     }
     if (m_bufferOwned && m_buffer) {
         free(m_buffer);
+    }
+    if (m_file.isOpen()) {
+        m_file.close();
+    }
+    
+    if (m_colorTable) {
+        free(m_colorTable);
     }
 }
 

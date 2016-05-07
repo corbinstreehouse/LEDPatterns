@@ -68,41 +68,37 @@ typedef struct  __attribute__((__packed__)) {
 } CDBitmapInfoHeaderV4;
 
 
-class CDLazyBitmap {
+class CDPatternBitmap {
 private:
     CDBitmapInfoHeader m_bInfo;
     CDBitmapInfoHeaderV4 m_bInfoV4;
     CDBitmapColorPaletteEntryRef m_colorTable;
     uint32_t m_width, m_height;
-protected:
+private:
     bool m_isValid;
     uint32_t m_dataOffset;
     FatFile m_file;
     
-    virtual uint8_t * getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
+    uint8_t * getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
 public:
-    CDLazyBitmap(const char *filename);
-    ~CDLazyBitmap();
-    
     
     inline bool getIsValid() { return m_isValid; }
     
     inline uint32_t getWidth() {
         return m_width; // m_bInfo.biWidth < 0 ? -m_bInfo.biWidth : m_bInfo.biWidth;
-	}
-	
-	inline uint32_t getHeight() {
+    }
+    
+    inline uint32_t getHeight() {
         return m_height; // m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
-	}
+    }
     
     // fills the buffer from the image data, loading it as needed.
     // y can be from 0 to height-1.
     // buffer MUST be getWidth*sizeof(CRGB).
     void fillRGBBufferFromYOffset(CRGB *buffer, int y);
-};
 
+    
 
-class CDPatternBitmap: public CDLazyBitmap {
 private:
     CRGB *m_buffer; // When non NULL, we have fully loaded the bitmap. We need to free this if m_bufferOwned is true (only for the pattern editor)
     CRGB *m_buffer1;
@@ -114,8 +110,6 @@ private:
     uint32_t m_bufferOwned:1;
     uint32_t m_bufferIsEntireFile:1;
     uint32_t m_bufferIsFullCRGBData:1;
-protected:
-    uint8_t *getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
 public:
     // buffers MAY be REFERENCED, if large enough -- they are not owned by this class, and the memory must be kept alive outside of it
     CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize);
