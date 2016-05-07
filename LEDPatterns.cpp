@@ -196,9 +196,6 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeSolidRainbow:
         case LEDPatternTypeRainbowWithSpaces:
         case LEDPatternTypeRandomGradients:
-        case LEDPatternTypeFadeOut: // After 100% the pattern just leaves it black (it doesn't reset to fade again)
-        case LEDPatternTypeFadeIn: // After 100% it just leaves the color up (doesn't do another fade)
-        case LEDPatternTypeFadeInFadeOut:
             return true;
         case LEDPatternTypeWarmWhiteShimmer:
         case LEDPatternTypeRandomColorWalk:
@@ -210,6 +207,10 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeRedGreenBrightTwinkle:
         case LEDPatternTypeColorTwinkle:
             return false; // i think
+        case LEDPatternTypeFadeOut:
+        case LEDPatternTypeFadeIn:
+        case LEDPatternTypeFadeInFadeOut:
+            return false; // i want these to repeat now
             
         case LEDPatternTypeCollision:
             return false;
@@ -307,16 +308,17 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             float percentagePassed = getPercentagePassed();
             if (percentagePassed <= 0.5) {
                 float fadeInPercentage = percentagePassed / 0.5;
-                fadeIn(fadeInPercentage);
+                fract8 v = round(fadeInPercentage*UINT8_MAX);
+                for (int i = 0; i < m_ledCount; i++) {
+                    m_leds[i] = blend(CRGB::Black, m_patternColor, v);
+                }
+
             } else {
                 float fadeOutPercentage = (percentagePassed - 0.5) / 0.5;
-                // first fade out marker
-                if (m_stateInfoCount == 0) {
-                    m_firstTime = true;
-                    m_stateInfoCount = 1;
-                    fadeOutPercentage = 0;
+                fract8 v = round(fadeOutPercentage*UINT8_MAX);
+                for (int i = 0; i < m_ledCount; i++) {
+                    m_leds[i] = blend(m_patternColor, CRGB::Black, v);
                 }
-                fadeOut(fadeOutPercentage);
             }
             break;
         }
@@ -689,13 +691,21 @@ void LEDPatterns::setDurationPassed(uint32_t timePassedInMS, uint32_t now) {
             if (offset > 0) {
                 if (isChasingPattern) {
                     int width = m_lazyBitmap->getWidth();
-                    offset = offset % width;
-                    m_lazyBitmap->setXOffset(offset);
+                    if (width > 0) {
+                        offset = offset % width;
+                        m_lazyBitmap->setXOffset(offset);
+                    } else {
+                        // bad image...
+                    }
                 } else {
                     int height = m_lazyBitmap->getHeight();
-                    offset = offset % height;
-                    m_lazyBitmap->setYOffset(offset);
-                    m_lazyBitmap->updateBuffersWithYOffset(offset, -1);
+                    if (height > 0) {
+                        offset = offset % height;
+                        m_lazyBitmap->setYOffset(offset);
+                        m_lazyBitmap->updateBuffersWithYOffset(offset, -1);
+                    } else {
+                        // bad image...
+                    }
                 }
             }
         }
