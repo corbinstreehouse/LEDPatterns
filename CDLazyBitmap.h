@@ -79,7 +79,20 @@ private:
     uint32_t m_dataOffset;
     FatFile m_file;
     
-    uint8_t * getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
+    uint8_t *getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
+    // fills the buffer from the image data, loading it as needed.
+    // y can be from 0 to height-1.
+    // buffer MUST be getWidth*sizeof(CRGB).
+    void uncompressed_fillRGBBufferFromYOffset(CRGB *buffer, int y);
+    
+    void fillEntireBufferFromFile(CRGB *buffer);
+
+    
+    void fillEntireBufferFromFile_comp0(CRGB *buffer);
+    // compression level 1, RLE 8
+    void fillEntireBufferFromFile_comp1(CRGB *buffer);
+    
+    
 public:
     
     inline bool getIsValid() { return m_isValid; }
@@ -92,11 +105,6 @@ public:
         return m_height; // m_bInfo.biHeight < 0 ? -m_bInfo.biHeight : m_bInfo.biHeight;
     }
     
-    // fills the buffer from the image data, loading it as needed.
-    // y can be from 0 to height-1.
-    // buffer MUST be getWidth*sizeof(CRGB).
-    void fillRGBBufferFromYOffset(CRGB *buffer, int y);
-
     
 
 private:
