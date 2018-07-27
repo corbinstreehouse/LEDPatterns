@@ -88,7 +88,7 @@ typedef CD_ENUM(int32_t, LEDPatternType) {
     LEDPatternTypeBouncingBall,
     LEDPatternTypeRainbowFire,
     LEDPatternTypeLavaFire,
-    
+
     LEDPatternTypeBitmap,
 
     LEDPatternTypeFadeInFadeOut,

@@ -13,7 +13,7 @@
 #include "FastLED.h"
 
 // Turn this off if you don't have an SD card. Needs to be set before the LEDPatternType include.
-#define SD_CARD_SUPPORT 1
+#define SD_CARD_SUPPORT 0
 
 #include "LEDPatternType.h"
 #include "CDLazyBitmap.h"
@@ -62,10 +62,8 @@ private:
     uint32_t m_pauseTime; // When non-0, we are paused
     
     void _showFromTime(uint32_t now);
-#if SD_CARD_SUPPORT
     // lazy bitmaps will replace my file format and file reading (soon!)
     CDPatternBitmap *m_lazyBitmap;
-#endif
     
     inline int getBufferSize() { return sizeof(CRGB) * m_ledCount; }
     CRGB *getTempBuffer1();
@@ -168,7 +166,12 @@ public:
     static bool PatternDurationShouldBeEqualToSegmentDuration(LEDPatternType p);
 
     // Call begin before doing anything
-    virtual void begin() = 0;
+    virtual void begin() {
+//        DEBUG_PRINTLN("LEDPatterns::begin\r\n");
+        // start all off..
+        fill_solid(m_leds, getLEDCount(), CRGB::Black);
+        internalShow();
+    }
     
     // Primary way to change patterns by calling setPatternType; this re-intializes things
     void setPatternType(LEDPatternType type);
@@ -207,9 +210,16 @@ public:
     
     // Abstract control over the overall LED options. Not all subclasses support all options.
     // 0 = off, 255 = on. Depends on the subclass for implementation
-    virtual void setBrightness(uint8_t brightness) = 0;
+    virtual void setBrightness(uint8_t brightness) {
+        FastLED.setBrightness(brightness);
+    }
     
-    virtual void internalShow() = 0; // only updates the LEDs with current state; mainly for subclassing
+    // only updates the LEDs with current state; mainly for subclassing
+    virtual void internalShow() { // protected?
+        FastLED.show();
+    }
+    
+    inline CRGB *getLEDs() { return m_leds; }
     
     // Call show to make the update take
     void show();

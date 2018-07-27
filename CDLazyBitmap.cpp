@@ -96,6 +96,7 @@ void CDPatternBitmap::fillEntireBufferFromFile(CRGB *buffer) {
 }
 
 void CDPatternBitmap::fillEntireBufferFromFile_comp0(CRGB *buffer) {
+#if SD_CARD_SUPPORT
     m_file.seekSet(m_dataOffset);
 
     // 4 byte aligned rows
@@ -225,10 +226,12 @@ void CDPatternBitmap::fillEntireBufferFromFile_comp0(CRGB *buffer) {
     }
     
     free(lineBuffer);
+#endif
 }
 
 // Fills the entire buffer with CRGB data from the file
 void CDPatternBitmap::fillEntireBufferFromFile_comp1(CRGB *buffer) {
+#if SD_CARD_SUPPORT
     m_file.seekSet(m_dataOffset);
     size_t maxOffset = m_width*m_height;
 
@@ -295,6 +298,7 @@ void CDPatternBitmap::fillEntireBufferFromFile_comp1(CRGB *buffer) {
             }
         }
     }
+#endif
 }
 
 void CDPatternBitmap::uncompressed_fillRGBBufferFromYOffset(CRGB *buffer, int y) {
@@ -498,6 +502,7 @@ static inline CRGB *getSharedBuffer() {
 
 
 uint8_t *CDPatternBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned) {
+#if SD_CARD_SUPPORT
     if (m_bufferIsEntireFile) {
         uint8_t *result = (uint8_t *)m_buffer;
         *owned = false;
@@ -517,6 +522,7 @@ uint8_t *CDPatternBitmap::getLineBufferAtOffset(size_t size, uint32_t dataOffset
         *owned = true;
         return lineBuffer;
     }
+#endif
 }
 
 CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buffer2, size_t bufferSize) : m_xOffset(0), m_yOffset(-1), m_bufferOwned(false), m_buffer1Owned(false), m_buffer2Owned(false), m_bufferIsEntireFile(false), m_bufferIsFullCRGBData(false), m_colorTable(NULL)  {
@@ -531,15 +537,15 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
 #endif
 #endif
     
-    
     m_isValid = false;
-    
+
+#if SD_CARD_SUPPORT
     m_file = FatFile(filename, O_READ);
     if (!m_file.isFile()) {
         DEBUG_PRINTF(" not a bitmap file?: %s\r\n", filename);
         return;
     }
-    
+
     CDBitmapFileHeader fileHeader;
     if (m_file.read((char*)&fileHeader, sizeof(CDBitmapFileHeader)) != sizeof(CDBitmapFileHeader)) {
         CLOSE_AND_RETURN("not a window bitmap image");
@@ -676,10 +682,10 @@ CDPatternBitmap::CDPatternBitmap(const char *filename, CRGB *buffer1, CRGB *buff
         }
     }
 
-
     if (m_isValid) {
         incYOffsetBuffers();
     }
+    #endif
 }
 
 
@@ -697,10 +703,11 @@ CDPatternBitmap::~CDPatternBitmap() {
     if (m_bufferOwned && m_buffer) {
         free(m_buffer);
     }
+#if SD_CARD_SUPPORT
     if (m_file.isOpen()) {
         m_file.close();
     }
-    
+#endif
     if (m_colorTable) {
         free(m_colorTable);
     }

@@ -6,7 +6,9 @@
 
 #include <stdlib.h>
 #include "FastLED.h"
+#if SD_CARD_SUPPORT
 #include "FatFile.h"
+#endif
 
 typedef struct CDBitmapColorPaletteEntry *CDBitmapColorPaletteEntryRef;
 
@@ -77,7 +79,9 @@ private:
 private:
     bool m_isValid;
     uint32_t m_dataOffset;
+#if SD_CARD_SUPPORT
     FatFile m_file;
+#endif
     
     uint8_t *getLineBufferAtOffset(size_t size, uint32_t dataOffset, bool *owned);
     // fills the buffer from the image data, loading it as needed.
