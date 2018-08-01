@@ -140,7 +140,6 @@ private: // Patterns
 protected:
     CRGB *m_leds;
     inline void setPixelColor(int pixel, CRGB color) { m_leds[pixel] = color; };
-    inline uint32_t getLEDCount() { return m_ledCount; };
 public:
     
     LEDPatterns(uint32_t ledCount) : m_ledCount(ledCount), m_duration(1000), m_pauseTime(0), m_needsInternalShow(true), m_firstTime(true) {
@@ -220,7 +219,8 @@ public:
     }
     
     inline CRGB *getLEDs() { return m_leds; }
-    
+    inline uint32_t getLEDCount() { return m_ledCount; };
+
     // Call show to make the update take
     void show();
     inline void forceShow() {
