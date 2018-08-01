@@ -471,7 +471,7 @@ static uint32_t heap_free() {
 #else
 
 #include "RamMonitor.h"
-RamMonitor ram;
+static RamMonitor ram;
 uint32_t heap_free() {
     return ram.free();
 }
