@@ -248,7 +248,9 @@ static inline bool _PatternIsContinuous(LEDPatternType p) {
         case LEDPatternTypeLife:
         case LEDPatternTypeLifeDynamic:
         case LEDPatternTypeBouncingBall:
+#if SD_CARD_SUPPORT
         case LEDPatternTypeBitmap:
+#endif
             return true;
             
     }
@@ -510,11 +512,12 @@ void LEDPatterns::updateLEDsForPatternType(LEDPatternType patternType) {
             bouncingBallPattern();
             break;
         }
+#if SD_CARD_SUPPORT
         case LEDPatternTypeBitmap: {
             bitmapPattern();
             break;
         }
-    
+#endif
     }
     
     if (m_patternType >= LEDPatternTypeWarmWhiteShimmer && m_patternType <= LEDPatternTypeCollision) {
@@ -2649,9 +2652,7 @@ void LEDPatterns::solidRainbow(int positionInWheel, int count) {
 //        uint16_t angle = 360.0 * ((float)((i + positionInWheel) / (float)countPerSection));
 //        CRGB color = hsvToRgb(angle, 255, 255);
 //        setPixelColor(i, color);
-        
         uint16_t hue = HUE_MAX_RAINBOW * ((float)((i + positionInWheel) / (float)countPerSection));
-
         CHSV hsv = CHSV(hue, 255, 255);
         hsv2rgb_rainbow(hsv, m_leds[i]);
     }
@@ -2762,7 +2763,7 @@ void LEDPatterns::ledGradients() {
 void LEDPatterns::pulseGradientEffect() {
     
     byte time = millis();
-    
+
     const int gradientUpPixelCount = 16;
     const int minV = 0;
     const int maxV = 255;
@@ -2771,12 +2772,12 @@ void LEDPatterns::pulseGradientEffect() {
         int totalGradientPixels = gradientUpPixelCount*2;
         int v = i % totalGradientPixels;
         int currentR = (int)map(v, 0, totalGradientPixels-1, minV, maxV*2);
-        
+
         // math mod...
         while (currentR > maxV*2) {
             currentR -= maxV*2;
         }
-        
+
         if (currentR > maxV) {
             // Ramp down the value
             currentR = currentR - (maxV - minV); // This would give a small value..we want a big vaul going down to the minV
@@ -2784,10 +2785,10 @@ void LEDPatterns::pulseGradientEffect() {
             //            Serial.print(" ramped: ");
             //            Serial.print(currentR);
         }
-        
+
         byte finalR = time - currentR;  // Vary for time and roll over (byte truncation)
-        
-        
+
+
         byte finalB = 0;
         int wholePasses = i / 16;
         if (wholePasses % 2 == 0) {

@@ -45,9 +45,11 @@ typedef CD_ENUM(int32_t, LEDPatternType) {
     LEDPatternTypePluseGradientEffect,
     LEDPatternTypeRandomGradients,
     
+#if SD_CARD_SUPPORT
     // NOTE: I'm making this a property of the image instead...
     LEDPatternTypeImageReferencedBitmap, // smooth traverse over pixels
     LEDPatternTypeImageEntireStrip_UNUSED, // one strip piece at a time defined
+#endif
     
     // the next set is ordered specifically
     LEDPatternTypeWarmWhiteShimmer,
@@ -89,7 +91,9 @@ typedef CD_ENUM(int32_t, LEDPatternType) {
     LEDPatternTypeRainbowFire,
     LEDPatternTypeLavaFire,
 
-    LEDPatternTypeBitmap,
+#if SD_CARD_SUPPORT
+    LEDPatternTypeBitmap, // doesn't work if you don't have the SD card code!
+#endif
 
     LEDPatternTypeFadeInFadeOut,
     
